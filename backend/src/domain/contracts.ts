@@ -60,6 +60,7 @@ export const Student = z.object({
 export const CreateStudent = Student.omit({ id: true, createdAt: true, updatedAt: true }).partial({
   phone: true,
   email: true,
+  registrationDate: true,
   assignedTeacherId: true,
   assignedCourseId: true,
   notes: true,
