@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import type React from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvider, useParams, useRouter } from '@tanstack/react-router';
-import { TanStackRouterDevtools } from '@tanstack/router-devtools';
+
 import { AuthProvider, useAuth } from './auth';
 import { api, type Assignment, type DashboardData, type Homework, type Progress, type Session, type Student, type Teacher, type TeacherPerformance, type User } from './api';
 import { HiOutlineHome, HiOutlineAcademicCap, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardDocumentList, HiOutlineCalendarDays, HiOutlinePencilSquare, HiOutlineChartBarSquare, HiOutlineChatBubbleLeftRight, HiOutlineShieldCheck, HiOutlineUser } from 'react-icons/hi2';
@@ -799,7 +799,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RouterProvider router={router} />
-        <TanStackRouterDevtools router={router} />
       </AuthProvider>
     </QueryClientProvider>
   );
