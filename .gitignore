@@ -1,0 +1,55 @@
+# Node.js & Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store
+.npmrc
+
+# TypeScript
+*.tsbuildinfo
+.tsbuildinfo
+
+# Build & Bundlers
+dist/
+build/
+out/
+.vite/
+.output/
+.next/
+.wrangler/
+.open-next/
+
+# Environment Variables & Secrets
+.env
+.env*.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Drizzle ORM
+# Generated migrations (uncomment if you keep them local and push using drizzle-kit push)
+# migrations/
+# drizzle/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# TanStack Router (Auto-generated files)
+# The route tree file is usually safe to ignore if it is auto-generated
+# on startup. If you use TanStack Start, it is often required to be committed.
+routeTree.gen.ts

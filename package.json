@@ -1,0 +1,19 @@
+{
+  "name": "speak-to-reach-management",
+  "version": "1.0.0",
+  "description": "School management system for Speak To Reach.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @speak-to-reach/backend --filter @speak-to-reach/frontend dev",
+    "build": "pnpm --filter @speak-to-reach/backend build && pnpm --filter @speak-to-reach/frontend build",
+    "check": "pnpm --filter @speak-to-reach/backend check && pnpm --filter @speak-to-reach/frontend build",
+    "db:generate": "pnpm --filter @speak-to-reach/backend db:generate",
+    "db:migrate": "pnpm --filter @speak-to-reach/backend db:migrate",
+    "db:seed": "pnpm --filter @speak-to-reach/backend db:seed"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.14.0"
+}
