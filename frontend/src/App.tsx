@@ -5,7 +5,7 @@ import { createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvide
 
 import { AuthProvider, useAuth } from './auth';
 import { api, type Assignment, type DashboardData, type Homework, type Progress, type Session, type Student, type Teacher, type TeacherPerformance, type User } from './api';
-import { HiOutlineHome, HiOutlineAcademicCap, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardDocumentList, HiOutlineCalendarDays, HiOutlinePencilSquare, HiOutlineChartBarSquare, HiOutlineChatBubbleLeftRight, HiOutlineShieldCheck, HiOutlineUser } from 'react-icons/hi2';
+import { HiOutlineHome, HiOutlineAcademicCap, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardDocumentList, HiOutlineCalendarDays, HiOutlinePencilSquare, HiOutlineChartBarSquare, HiOutlineChatBubbleLeftRight, HiOutlineShieldCheck, HiOutlineUser, HiOutlineArrowRightOnRectangle, HiOutlineChevronDoubleLeft, HiOutlineChevronDoubleRight } from 'react-icons/hi2';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -226,9 +226,9 @@ function ProtectedLayout() {
               <small>{user.email}</small>
             </>
           )}
-          <button onClick={logout} type="button" className="logout-btn">Sign Out</button>
+          <button onClick={logout} type="button" className="logout-btn"><HiOutlineArrowRightOnRectangle size={18} /> {!sidebarCompact && 'Sign Out'}</button>
           <button onClick={toggleCompact} type="button" className="logout-btn">
-            {sidebarCompact ? '[>>]' : '[<<]'}
+            {sidebarCompact ? <HiOutlineChevronDoubleRight size={18} /> : <HiOutlineChevronDoubleLeft size={18} />}
           </button>
         </div>
       </aside>
