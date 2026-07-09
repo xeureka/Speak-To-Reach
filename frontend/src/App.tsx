@@ -180,14 +180,15 @@ function ProtectedLayout() {
   const location = useLocation();
   const [sidebarCompact, setSidebarCompact] = useState(() => localStorage.getItem('sidebar-compact') === 'true');
 
-  if (isLoading) return <div className="loading-screen"><Skeleton /></div>;
-  if (!user) {
-    router.navigate({ to: '/login' });
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.navigate({ to: '/login' });
+    }
+  }, [isLoading, user, router]);
 
   const adminOnly = useMemo(() => ['/', '/courses', '/assignments', '/sessions', '/homework', '/reports'], []);
   useEffect(() => {
+    if (!user) return;
     if (user.role !== 'admin' && adminOnly.includes(location.pathname)) {
       router.navigate({ to: user.role === 'teacher' ? '/teacher' : `/students/${user.studentId}` });
     } else if (user.role === 'student') {
@@ -196,7 +197,10 @@ function ProtectedLayout() {
         router.navigate({ to: myPage });
       }
     }
-  }, [user.role, user.studentId, location.pathname, router, adminOnly]);
+  }, [user, location.pathname, adminOnly, router]);
+
+  if (isLoading) return <div className="loading-screen"><Skeleton /></div>;
+  if (!user) return null;
 
   const toggleCompact = () => {
     const next = !sidebarCompact;
@@ -855,10 +859,12 @@ const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login'
 function LoginRoute() {
   const { user } = useAuth();
   const router = useRouter();
-  if (user) {
-    router.navigate({ to: roleRedirect(user) });
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      router.navigate({ to: roleRedirect(user) });
+    }
+  }, [user, router]);
+  if (user) return null;
   return <LoginPage />;
 }
 
