@@ -184,7 +184,7 @@ function ProtectedLayout() {
     if (!isLoading && !user) {
       router.navigate({ to: '/login' });
     }
-  }, [isLoading, user, router]);
+  }, [isLoading, user]);
 
   const adminOnly = useMemo(() => ['/', '/courses', '/assignments', '/sessions', '/homework', '/reports'], []);
   useEffect(() => {
@@ -197,10 +197,9 @@ function ProtectedLayout() {
         router.navigate({ to: myPage });
       }
     }
-  }, [user, location.pathname, adminOnly, router]);
+  }, [user, location.pathname, adminOnly]);
 
-  if (isLoading) return <div className="loading-screen"><Skeleton /></div>;
-  if (!user) return null;
+  if (isLoading || !user) return <div className="loading-screen"><Skeleton /></div>;
 
   const toggleCompact = () => {
     const next = !sidebarCompact;
@@ -255,7 +254,7 @@ function ProtectedLayout() {
               <small>{user.email}</small>
             </>
           )}
-          <button onClick={logout} type="button" className="logout-btn"><HiOutlineArrowRightOnRectangle size={18} /> {!sidebarCompact && 'Sign Out'}</button>
+          <button onClick={() => { logout(); router.navigate({ to: '/login' }); }} type="button" className="logout-btn"><HiOutlineArrowRightOnRectangle size={18} /> {!sidebarCompact && 'Sign Out'}</button>
           <button onClick={toggleCompact} type="button" className="logout-btn">
             {sidebarCompact ? <HiOutlineChevronDoubleRight size={18} /> : <HiOutlineChevronDoubleLeft size={18} />}
           </button>
@@ -275,9 +274,8 @@ function AdminDashboard() {
   const [teacherMsg, setTeacherMsg] = useState<string | null>(null);
   const registerTeacher = useMutation({
     mutationFn: async () => {
-      const reg = await api.registerUser({ name: teacherName, email: teacherEmail, role: 'teacher' });
-      await api.createTeacher({ teacherName, email: teacherEmail });
-      return reg.password;
+      const res = await api.createTeacher({ teacherName, email: teacherEmail });
+      return (res as Record<string, unknown>).password as string;
     },
     onSuccess: (password) => {
       setTeacherMsg(`Teacher created. Password: ${password}`);
@@ -298,9 +296,8 @@ function AdminDashboard() {
   const [studentMsg, setStudentMsg] = useState<string | null>(null);
   const registerStudent = useMutation({
     mutationFn: async () => {
-      const reg = await api.registerUser({ name: studentName, email: studentEmail, role: 'student' });
-      await api.createStudent({ studentName, email: studentEmail, level: studentLevel, classType: studentClassType });
-      return reg.password;
+      const res = await api.createStudent({ studentName, email: studentEmail, level: studentLevel, classType: studentClassType });
+      return (res as Record<string, unknown>).password as string;
     },
     onSuccess: (password) => {
       setStudentMsg(`Student created. Password: ${password}`);
@@ -863,7 +860,7 @@ function LoginRoute() {
     if (user) {
       router.navigate({ to: roleRedirect(user) });
     }
-  }, [user, router]);
+  }, [user]);
   if (user) return null;
   return <LoginPage />;
 }

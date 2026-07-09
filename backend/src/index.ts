@@ -148,8 +148,17 @@ app.openapi(
       const { entity, password } = await (repo as typeof db).createTeacher(c.req.valid('json') as Record<string, unknown>);
       return c.json({ ...entity, password }, 201);
     }
-    const created = (repo as typeof mem).create((repo as typeof mem).teachers, { status: 'active', ...c.req.valid('json') } as any);
-    return c.json(created, 201);
+    const data = c.req.valid('json');
+    const created = (repo as typeof mem).create((repo as typeof mem).teachers, { status: 'active', ...data } as any);
+    const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
+    const existingUser = (repo as typeof mem).users.find((u) => u.email === data.email);
+    if (existingUser) {
+      existingUser.password = password;
+      existingUser.teacherId = created.id;
+    } else {
+      (repo as typeof mem).users.push({ id: `user-teacher-${Math.random().toString(36).slice(2, 7)}`, name: data.teacherName, email: data.email, password, role: 'teacher', teacherId: created.id });
+    }
+    return c.json({ ...created, password }, 201);
   },
 );
 app.openapi(
@@ -187,8 +196,20 @@ app.openapi(
       const { entity, password } = await (repo as typeof db).createStudent(c.req.valid('json') as Record<string, unknown>);
       return c.json({ ...entity, password }, 201);
     }
-    const created = (repo as typeof mem).create((repo as typeof mem).students, { status: 'Active', ...c.req.valid('json') } as any);
-    return c.json(created, 201);
+    const data = c.req.valid('json');
+    const created = (repo as typeof mem).create((repo as typeof mem).students, { status: 'Active', ...data } as any);
+    const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
+    const email = data.email ? String(data.email) : '';
+    if (email) {
+      const existingUser = (repo as typeof mem).users.find((u) => u.email === email);
+      if (existingUser) {
+        existingUser.password = password;
+        existingUser.studentId = created.id;
+      } else {
+        (repo as typeof mem).users.push({ id: `user-student-${Math.random().toString(36).slice(2, 7)}`, name: data.studentName, email, password, role: 'student', studentId: created.id });
+      }
+    }
+    return c.json({ ...created, password }, 201);
   },
 );
 app.openapi(
