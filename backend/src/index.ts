@@ -59,7 +59,7 @@ app.openapi(
       const token = await sign({ sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 86400 * 7 }, JWT_SECRET);
       return c.json({ token, user }, 200);
     }
-    const user = repo.users.find((u) => u.email === email);
+    const user = (repo as typeof mem).users.find((u) => u.email === email);
     if (!user || user.password !== password) throw new HTTPException(401, { message: 'Invalid email or password' });
     const token = await sign({ sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 86400 * 7 }, JWT_SECRET);
     const { password: _pw, ...safeUser } = user;
@@ -71,12 +71,13 @@ app.openapi(
   createRoute({ method: 'get', path: '/api/auth/me', responses: { 200: { content: { 'application/json': { schema: AuthUser } }, description: 'OK' } } }),
   async (c) => {
     const userId = getUserId(c);
+    if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
     if (USE_DB) {
       const user = await (repo as typeof db).getUserFromDB(userId);
       if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
       return c.json(user, 200);
     }
-    const user = repo.users.find((u) => u.id === userId);
+    const user = (repo as typeof mem).users.find((u) => u.id === userId);
     if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
     const { password: _pw, ...safeUser } = user;
     return c.json(safeUser, 200);
@@ -91,6 +92,7 @@ app.openapi(
   }),
   async (c) => {
     const userId = getUserId(c);
+    if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
     if (USE_DB) {
       const caller = await (repo as typeof db).getUserFromDB(userId);
       if (!caller || caller.role !== 'admin') throw new HTTPException(401, { message: 'Only admin can register users' });
@@ -98,12 +100,12 @@ app.openapi(
       const { user, password } = await (repo as typeof db).createUserInDB({ name: body.name, email: body.email, role: body.role, teacherId: body.teacherId, studentId: body.studentId });
       return c.json({ id: user.id, email: user.email, password, role: user.role }, 201);
     }
-    const caller = repo.users.find((u) => u.id === userId);
+    const caller = (repo as typeof mem).users.find((u) => u.id === userId);
     if (!caller || caller.role !== 'admin') throw new HTTPException(401, { message: 'Only admin can register users' });
     const body = c.req.valid('json');
     const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
     const newUser = { id: `user-${body.role}-${Math.random().toString(36).slice(2, 7)}`, name: body.name, email: body.email, password, role: body.role, teacherId: body.teacherId, studentId: body.studentId };
-    repo.users.push(newUser);
+    (repo as typeof mem).users.push(newUser);
     return c.json({ id: newUser.id, email: newUser.email, password, role: newUser.role }, 201);
   },
 );
@@ -116,13 +118,14 @@ app.openapi(
   }),
   async (c) => {
     const userId = getUserId(c);
+    if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
     if (USE_DB) {
       const { currentPassword, newPassword } = c.req.valid('json');
       const result = await (repo as typeof db).updatePasswordInDB(userId, currentPassword, newPassword);
       if (!result.ok) throw new HTTPException(401, { message: result.message });
       return c.json({ message: 'Password updated' }, 200);
     }
-    const user = repo.users.find((u) => u.id === userId);
+    const user = (repo as typeof mem).users.find((u) => u.id === userId);
     if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
     const { currentPassword, newPassword } = c.req.valid('json');
     if (user.password !== currentPassword) throw new HTTPException(401, { message: 'Current password is incorrect' });

@@ -138,6 +138,7 @@ export class DrizzleRepository {
     }
     const rec = { id: id('tch'), teacherName: String(data.teacherName ?? ''), email, phone: this.str(data.phone), status: (data.status as 'active' | 'inactive') ?? 'active', hireDate: this.str(data.hireDate), notes: this.str(data.notes) };
     const [inserted] = await this.db.insert(s.teachers).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create teacher');
     const { password } = await this.createUserInDB({ name: String(data.teacherName ?? ''), email, role: 'teacher', teacherId: inserted.id });
     return { entity: this.mapTeacher(inserted), password };
   }
@@ -160,6 +161,7 @@ export class DrizzleRepository {
   async createStudent(data: Record<string, unknown>) {
     const rec = { id: id('stu'), studentName: String(data.studentName ?? ''), phone: this.str(data.phone), email: this.str(data.email), level: data.level as any, classType: data.classType as any, status: (data.status as any) ?? 'Active', registrationDate: String(data.registrationDate ?? today()), assignedTeacherId: this.str(data.assignedTeacherId), assignedCourseId: this.str(data.assignedCourseId), notes: this.str(data.notes) };
     const [inserted] = await this.db.insert(s.students).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create student');
     const { password } = await this.createUserInDB({ name: String(data.studentName ?? ''), email: data.email ? String(data.email) : `student-${inserted.id}@placeholder.local`, role: 'student', studentId: inserted.id });
     return { entity: this.mapStudent(inserted), password };
   }
@@ -178,6 +180,7 @@ export class DrizzleRepository {
   async createCourse(data: Record<string, unknown>) {
     const rec = { id: id('crs'), courseName: String(data.courseName ?? ''), level: data.level as any, totalUnits: Number(data.totalUnits), totalLessons: Number(data.totalLessons), description: this.str(data.description) };
     const [inserted] = await this.db.insert(s.courses).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create course');
     return this.mapCourse(inserted);
   }
   async updateCourse(id: string, data: Record<string, unknown>) {
@@ -199,6 +202,7 @@ export class DrizzleRepository {
   async createAssignment(data: Record<string, unknown>) {
     const rec = { id: id('asg'), assignmentName: String(data.assignmentName ?? ''), teacherId: String(data.teacherId ?? ''), studentId: String(data.studentId ?? ''), courseId: String(data.courseId ?? ''), days: String(data.days ?? ''), startTime: String(data.startTime ?? '00:00'), endTime: this.str(data.endTime), startDate: String(data.startDate ?? today()), endDate: this.str(data.endDate), mode: data.mode as any, status: (data.status as any) ?? 'Active' };
     const [inserted] = await this.db.insert(s.assignments).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create assignment');
     return this.mapAssignment(inserted);
   }
   async updateAssignment(id: string, data: Record<string, unknown>) {
@@ -227,6 +231,7 @@ export class DrizzleRepository {
   async createSession(data: Record<string, unknown>) {
     const rec = { id: id('ses'), sessionName: String(data.sessionName ?? ''), sessionDate: String(data.sessionDate ?? today()), teacherId: String(data.teacherId ?? ''), studentId: String(data.studentId ?? ''), assignmentId: String(data.assignmentId ?? ''), lessonNumber: Number(data.lessonNumber ?? 1), lessonTitle: String(data.lessonTitle ?? ''), attendance: (data.attendance as any) ?? 'Present', present: Boolean(data.present ?? false), absent: Boolean(data.absent ?? false), late: Boolean(data.late ?? false), cancelled: Boolean(data.cancelled ?? false), durationMinutes: this.num(data.durationMinutes), homeworkGiven: this.str(data.homeworkGiven), homeworkSubmitted: Boolean(data.homeworkSubmitted ?? false), vocabularyCovered: this.str(data.vocabularyCovered), grammarCovered: this.str(data.grammarCovered), speakingPractice: this.str(data.speakingPractice), readingPractice: this.str(data.readingPractice), writingPractice: this.str(data.writingPractice), listeningPractice: this.str(data.listeningPractice), teacherNotes: this.str(data.teacherNotes) };
     const [inserted] = await this.db.insert(s.sessions).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create session');
     return this.mapSession(inserted);
   }
   async updateSession(id: string, data: Record<string, unknown>) {
@@ -249,6 +254,7 @@ export class DrizzleRepository {
   async createHomework(data: Record<string, unknown>) {
     const rec = { id: id('hwk'), homework: String(data.homework ?? ''), studentId: String(data.studentId ?? ''), teacherId: String(data.teacherId ?? ''), sessionId: this.str(data.sessionId), dueDate: String(data.dueDate ?? today()), submitted: Boolean(data.submitted ?? false), score: data.score ? String(data.score) : null, feedback: this.str(data.feedback) };
     const [inserted] = await this.db.insert(s.homework).values(rec).returning();
+    if (!inserted) throw new Error('Failed to create homework');
     return this.mapHomework(inserted);
   }
   async updateHomework(id: string, data: Record<string, unknown>) {
