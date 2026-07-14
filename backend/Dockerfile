@@ -39,4 +39,4 @@ EXPOSE 3000
 ENV PORT=3000
 
 # Run the compiled server entry point
-CMD ["node", "backend/dist/api/server.js"]
+CMD ["node", "backend/dist/server.js"]
