@@ -1,3 +1,1 @@
-import app from '../index.js';
-
-export default app.fetch;
+export { default } from '../index.js';

@@ -1,3 +1,4 @@
+import { handle } from 'hono/vercel';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
@@ -15,7 +16,7 @@ import { loadEnv } from './load-env.js';
 
 loadEnv();
 
-const app = new OpenAPIHono();
+export const app = new OpenAPIHono();
 app.use('*', cors());
 
 const ErrorResponse = z.object({ message: z.string() });
@@ -585,4 +586,4 @@ app.doc('/openapi.json', {
 app.get('/api/docs', swaggerUI({ url: '/openapi.json' }));
 
 export type AppType = typeof app;
-export default app;
+export default handle(app);
