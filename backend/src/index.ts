@@ -5,19 +5,15 @@ import { sign } from 'hono/jwt';
 import { HTTPException } from 'hono/http-exception';
 import process from 'node:process';
 import {
-  Assignment, AuthUser, Course, CreateAssignment, CreateCourse, CreateHomework,
-  CreateSession, CreateStudent, CreateTeacher, DashboardData, Homework, Progress,
-  Session, Student, Teacher, TeacherPerformance, UpdateAssignment, UpdateCourse,
-  UpdateHomework, UpdateProgress, UpdateSession, UpdateStudent, UpdateTeacher,
+  AuthUser, Teacher, Course, Student, Section, Enrollment, ClassSession,
+  CreateTeacher, UpdateTeacher, CreateCourse, UpdateCourse, CreateStudent, UpdateStudent,
+  CreateSection, UpdateSection, CreateEnrollment, CreateClassSession, UpdateClassSession,
+  CreateSessionReport, AttendancePayload, DashboardData, ImportResult, PaymentSummary,
 } from './domain/contracts.js';
-import { repository as mem } from './repositories/memory.js';
-import { drizzleRepository as db } from './repositories/drizzle.js';
+import { drizzleRepository as repo } from './repositories/drizzle.js';
 import { loadEnv } from './load-env.js';
 
 loadEnv();
-
-const USE_DB = Boolean(process.env.DATABASE_URL);
-const repo = USE_DB ? db : mem;
 
 const app = new OpenAPIHono();
 app.use('*', cors());
@@ -52,18 +48,11 @@ app.openapi(
   }),
   async (c) => {
     const { email, password } = c.req.valid('json');
-    if (USE_DB) {
-      await (repo as typeof db).seedUsersAsync();
-      const user = await (repo as typeof db).loginDB(email, password);
-      if (!user) throw new HTTPException(401, { message: 'Invalid email or password' });
-      const token = await sign({ sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 86400 * 7 }, JWT_SECRET);
-      return c.json({ token, user }, 200);
-    }
-    const user = (repo as typeof mem).users.find((u) => u.email === email);
-    if (!user || user.password !== password) throw new HTTPException(401, { message: 'Invalid email or password' });
+    await repo.seedUsersAsync();
+    const user = await repo.loginDB(email, password);
+    if (!user) throw new HTTPException(401, { message: 'Invalid email or password' });
     const token = await sign({ sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 86400 * 7 }, JWT_SECRET);
-    const { password: _pw, ...safeUser } = user;
-    return c.json({ token, user: safeUser }, 200);
+    return c.json({ token, user }, 200);
   },
 );
 
@@ -72,41 +61,26 @@ app.openapi(
   async (c) => {
     const userId = getUserId(c);
     if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
-    if (USE_DB) {
-      const user = await (repo as typeof db).getUserFromDB(userId);
-      if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
-      return c.json(user, 200);
-    }
-    const user = (repo as typeof mem).users.find((u) => u.id === userId);
+    const user = await repo.getUserFromDB(userId);
     if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
-    const { password: _pw, ...safeUser } = user;
-    return c.json(safeUser, 200);
+    return c.json(user, 200);
   },
 );
 
 app.openapi(
   createRoute({
     method: 'post', path: '/api/auth/register',
-    request: { body: { content: { 'application/json': { schema: z.object({ name: z.string(), email: z.string().email(), role: z.enum(['teacher', 'student']), teacherId: z.string().optional(), studentId: z.string().optional() }) } } } },
-    responses: { 201: { content: { 'application/json': { schema: z.object({ id: z.string(), email: z.string(), password: z.string(), role: z.string() }) } }, description: 'Created' }, 401: { content: { 'application/json': { schema: z.object({ message: z.string() }) } }, description: 'Unauthorized' } },
+    request: { body: { content: { 'application/json': { schema: z.object({ name: z.string(), email: z.string().email(), role: z.enum(['teacher']), teacherId: z.string().optional() }) } } } },
+    responses: { 201: { content: { 'application/json': { schema: z.object({ id: z.string(), email: z.string(), password: z.string(), role: z.string() }) } }, description: 'Created' } },
   }),
   async (c) => {
     const userId = getUserId(c);
     if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
-    if (USE_DB) {
-      const caller = await (repo as typeof db).getUserFromDB(userId);
-      if (!caller || caller.role !== 'admin') throw new HTTPException(401, { message: 'Only admin can register users' });
-      const body = c.req.valid('json');
-      const { user, password } = await (repo as typeof db).createUserInDB({ name: body.name, email: body.email, role: body.role, teacherId: body.teacherId, studentId: body.studentId });
-      return c.json({ id: user.id, email: user.email, password, role: user.role }, 201);
-    }
-    const caller = (repo as typeof mem).users.find((u) => u.id === userId);
+    const caller = await repo.getUserFromDB(userId);
     if (!caller || caller.role !== 'admin') throw new HTTPException(401, { message: 'Only admin can register users' });
     const body = c.req.valid('json');
-    const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
-    const newUser = { id: `user-${body.role}-${Math.random().toString(36).slice(2, 7)}`, name: body.name, email: body.email, password, role: body.role, teacherId: body.teacherId, studentId: body.studentId };
-    (repo as typeof mem).users.push(newUser);
-    return c.json({ id: newUser.id, email: newUser.email, password, role: newUser.role }, 201);
+    const { user, password } = await repo.createUserInDB({ name: body.name, email: body.email, role: 'teacher', teacherId: body.teacherId });
+    return c.json({ id: user.id, email: user.email, password, role: user.role }, 201);
   },
 );
 
@@ -114,22 +88,14 @@ app.openapi(
   createRoute({
     method: 'patch', path: '/api/auth/password',
     request: { body: { content: { 'application/json': { schema: z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }) } } } },
-    responses: { 200: { content: { 'application/json': { schema: z.object({ message: z.string() }) } }, description: 'OK' }, 401: { content: { 'application/json': { schema: z.object({ message: z.string() }) } }, description: 'Unauthorized' } },
+    responses: { 200: { content: { 'application/json': { schema: z.object({ message: z.string() }) } }, description: 'OK' } },
   }),
   async (c) => {
     const userId = getUserId(c);
     if (!userId) throw new HTTPException(401, { message: 'Unauthorized' });
-    if (USE_DB) {
-      const { currentPassword, newPassword } = c.req.valid('json');
-      const result = await (repo as typeof db).updatePasswordInDB(userId, currentPassword, newPassword);
-      if (!result.ok) throw new HTTPException(401, { message: result.message });
-      return c.json({ message: 'Password updated' }, 200);
-    }
-    const user = (repo as typeof mem).users.find((u) => u.id === userId);
-    if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
     const { currentPassword, newPassword } = c.req.valid('json');
-    if (user.password !== currentPassword) throw new HTTPException(401, { message: 'Current password is incorrect' });
-    user.password = newPassword;
+    const result = await repo.updatePasswordInDB(userId, currentPassword, newPassword);
+    if (!result.ok) throw new HTTPException(401, { message: result.message });
     return c.json({ message: 'Password updated' }, 200);
   },
 );
@@ -140,28 +106,15 @@ app.openapi(
   createRoute({ method: 'get', path: '/api/teachers', request: { query: z.object({ status: z.enum(['active', 'inactive']).optional() }) }, responses: ok(z.array(Teacher)) }),
   async (c) => {
     const q = c.req.valid('query');
-    const rows = USE_DB ? await (repo as typeof db).listTeachers(q.status) : (repo as typeof mem).teachers.filter((t) => !q.status || t.status === q.status);
+    const rows = await repo.listTeachers(q.status);
     return c.json(rows);
   },
 );
 app.openapi(
   createRoute({ method: 'post', path: '/api/teachers', request: { body: { content: { 'application/json': { schema: CreateTeacher } } } }, responses: created(Teacher) }),
   async (c) => {
-    if (USE_DB) {
-      const { entity, password } = await (repo as typeof db).createTeacher(c.req.valid('json') as Record<string, unknown>);
-      return c.json({ ...entity, password }, 201);
-    }
-    const data = c.req.valid('json');
-    const created = (repo as typeof mem).create((repo as typeof mem).teachers, { status: 'active', ...data } as any);
-    const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
-    const existingUser = (repo as typeof mem).users.find((u) => u.email === data.email);
-    if (existingUser) {
-      existingUser.password = password;
-      existingUser.teacherId = created.id;
-    } else {
-      (repo as typeof mem).users.push({ id: `user-teacher-${Math.random().toString(36).slice(2, 7)}`, name: data.teacherName, email: data.email, password, role: 'teacher', teacherId: created.id });
-    }
-    return c.json({ ...created, password }, 201);
+    const { entity, password } = await repo.createTeacher(c.req.valid('json') as Record<string, unknown>);
+    return c.json({ ...entity, password }, 201);
   },
 );
 app.openapi(
@@ -171,10 +124,66 @@ app.openapi(
     responses: { 200: { content: { 'application/json': { schema: Teacher } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateTeacher(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).teachers, id, c.req.valid('json'));
+    const updated = await repo.updateTeacher(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
     if (!updated) throw new HTTPException(404, { message: 'Teacher not found' });
     return c.json(updated, 200);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'post', path: '/api/teachers/{id}/reset-password',
+    request: { params: IdParam },
+    responses: { 200: { content: { 'application/json': { schema: z.object({ email: z.string(), password: z.string() }) } }, description: 'Password reset' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+  }),
+  async (c) => {
+    const result = await repo.resetTeacherPassword(c.req.valid('param').id);
+    if (!result) throw new HTTPException(404, { message: 'Teacher not found' });
+    return c.json(result, 200);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/teachers/{id}/students',
+    request: { params: IdParam },
+    responses: ok(z.array(Student)),
+  }),
+  async (c) => {
+    const students = await repo.listTeacherStudents(c.req.valid('param').id);
+    return c.json(students);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/teachers/{id}/analytics',
+    request: { params: IdParam },
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              totalSections: z.number(),
+              privateSections: z.number(),
+              groupSections: z.number(),
+              privateSectionNames: z.array(z.string()),
+              groupSectionNames: z.array(z.string()),
+              monthSessionsTotal: z.number(),
+              monthSessionsCompleted: z.number(),
+              monthHoursTotal: z.number(),
+              totalStudents: z.number(),
+              reportsSubmitted: z.number(),
+              reportsDraft: z.number(),
+              totalSessionsEver: z.number(),
+              recentSessions: z.array(z.any()),
+            }),
+          },
+        },
+        description: 'Teacher analytics',
+      },
+    },
+  }),
+  async (c) => {
+    const analytics = await repo.getTeacherAnalytics(c.req.valid('param').id);
+    return c.json(analytics, 200);
   },
 );
 
@@ -183,36 +192,20 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'get', path: '/api/students',
-    request: { query: z.object({ status: z.enum(['Active', 'Paused', 'Completed']).optional(), classType: z.enum(['Private', 'Mini Group']).optional(), level: z.enum(['Beginner', 'Elementary', 'Pre-Intermediate', 'Intermediate', 'Upper Intermediate', 'Advanced']).optional() }) },
+    request: { query: z.object({ status: z.enum(['Active', 'Paused', 'Completed']).optional(), classType: z.enum(['Private', 'Mini Group', 'Group']).optional(), level: z.enum(['Beginner', 'Elementary', 'Pre-Intermediate', 'Intermediate', 'Upper Intermediate', 'Advanced']).optional() }) },
     responses: ok(z.array(Student)),
   }),
   async (c) => {
     const q = c.req.valid('query');
-    const rows = USE_DB ? await (repo as typeof db).listStudents({ status: q.status, classType: q.classType, level: q.level }) : (repo as typeof mem).students.filter((s) => (!q.status || s.status === q.status) && (!q.classType || s.classType === q.classType) && (!q.level || s.level === q.level));
+    const rows = await repo.listStudents({ status: q.status, classType: q.classType, level: q.level });
     return c.json(rows);
   },
 );
 app.openapi(
   createRoute({ method: 'post', path: '/api/students', request: { body: { content: { 'application/json': { schema: CreateStudent } } } }, responses: created(Student) }),
   async (c) => {
-    if (USE_DB) {
-      const { entity, password } = await (repo as typeof db).createStudent(c.req.valid('json') as Record<string, unknown>);
-      return c.json({ ...entity, password }, 201);
-    }
-    const data = c.req.valid('json');
-    const created = (repo as typeof mem).create((repo as typeof mem).students, { status: 'Active', ...data } as any);
-    const password = [...Array(10)].map(() => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 30)]).join('');
-    const email = data.email ? String(data.email) : '';
-    if (email) {
-      const existingUser = (repo as typeof mem).users.find((u) => u.email === email);
-      if (existingUser) {
-        existingUser.password = password;
-        existingUser.studentId = created.id;
-      } else {
-        (repo as typeof mem).users.push({ id: `user-student-${Math.random().toString(36).slice(2, 7)}`, name: data.studentName, email, password, role: 'student', studentId: created.id });
-      }
-    }
-    return c.json({ ...created, password }, 201);
+    const { entity } = await repo.createStudent(c.req.valid('json') as Record<string, unknown>);
+    return c.json(entity, 201);
   },
 );
 app.openapi(
@@ -222,8 +215,7 @@ app.openapi(
     responses: { 200: { content: { 'application/json': { schema: Student } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateStudent(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).students, id, c.req.valid('json'));
+    const updated = await repo.updateStudent(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
     if (!updated) throw new HTTPException(404, { message: 'Student not found' });
     return c.json(updated, 200);
   },
@@ -232,13 +224,13 @@ app.openapi(
 // ── Courses ───────────────────────────────────────────────────────────────────
 
 app.openapi(createRoute({ method: 'get', path: '/api/courses', responses: ok(z.array(Course)) }), async (c) => {
-  const rows = USE_DB ? await (repo as typeof db).listCourses() : (repo as typeof mem).courses;
+  const rows = await repo.listCourses();
   return c.json(rows);
 });
 app.openapi(
   createRoute({ method: 'post', path: '/api/courses', request: { body: { content: { 'application/json': { schema: CreateCourse } } } }, responses: created(Course) }),
   async (c) => {
-    const created = USE_DB ? await (repo as typeof db).createCourse(c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).create((repo as typeof mem).courses, c.req.valid('json') as any);
+    const created = await repo.createCourse(c.req.valid('json') as Record<string, unknown>);
     return c.json(created, 201);
   },
 );
@@ -249,221 +241,345 @@ app.openapi(
     responses: { 200: { content: { 'application/json': { schema: Course } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateCourse(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).courses, id, c.req.valid('json'));
+    const updated = await repo.updateCourse(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
     if (!updated) throw new HTTPException(404, { message: 'Course not found' });
     return c.json(updated, 200);
   },
 );
 
-// ── Assignments ───────────────────────────────────────────────────────────────
+// ── Sections ──────────────────────────────────────────────────────────────────
 
 app.openapi(
   createRoute({
-    method: 'get', path: '/api/assignments',
-    request: { query: z.object({ status: z.enum(['Active', 'Upcoming', 'Ended', 'Cancelled']).optional(), teacherId: z.string().optional(), studentId: z.string().optional() }) },
-    responses: ok(z.array(Assignment)),
+    method: 'get', path: '/api/sections',
+    request: { query: z.object({ status: z.enum(['active', 'inactive', 'completed']).optional(), teacherId: z.string().optional(), classType: z.enum(['Private', 'Mini Group', 'Group']).optional() }) },
+    responses: ok(z.array(Section)),
   }),
   async (c) => {
     const q = c.req.valid('query');
-    const rows = USE_DB ? await (repo as typeof db).listAssignments({ status: q.status, teacherId: q.teacherId, studentId: q.studentId }) : (repo as typeof mem).assignments.filter((a) => (!q.status || a.status === q.status) && (!q.teacherId || a.teacherId === q.teacherId) && (!q.studentId || a.studentId === q.studentId));
+    const rows = await repo.listSections(q);
     return c.json(rows);
   },
 );
 app.openapi(
-  createRoute({ method: 'post', path: '/api/assignments', request: { body: { content: { 'application/json': { schema: CreateAssignment } } } }, responses: created(Assignment) }),
+  createRoute({ method: 'post', path: '/api/sections', request: { body: { content: { 'application/json': { schema: CreateSection } } } }, responses: created(Section) }),
   async (c) => {
-    const created = USE_DB ? await (repo as typeof db).createAssignment(c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).create((repo as typeof mem).assignments, { status: 'Active', ...c.req.valid('json') } as any);
+    const created = await repo.createSection(c.req.valid('json') as Record<string, unknown>);
     return c.json(created, 201);
   },
 );
 app.openapi(
   createRoute({
-    method: 'patch', path: '/api/assignments/{id}',
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAssignment } } } },
-    responses: { 200: { content: { 'application/json': { schema: Assignment } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+    method: 'get', path: '/api/sections/{id}',
+    request: { params: IdParam },
+    responses: { 200: { content: { 'application/json': { schema: Section } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateAssignment(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).assignments, id, c.req.valid('json'));
-    if (!updated) throw new HTTPException(404, { message: 'Assignment not found' });
+    const section = await repo.getSection(c.req.valid('param').id);
+    if (!section) throw new HTTPException(404, { message: 'Section not found' });
+    return c.json(section, 200);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'patch', path: '/api/sections/{id}',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateSection } } } },
+    responses: { 200: { content: { 'application/json': { schema: Section } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+  }),
+  async (c) => {
+    const updated = await repo.updateSection(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
+    if (!updated) throw new HTTPException(404, { message: 'Section not found' });
     return c.json(updated, 200);
   },
 );
 app.openapi(
   createRoute({
-    method: 'post', path: '/api/assignments/{id}/end', request: { params: IdParam },
-    responses: { 200: { content: { 'application/json': { schema: Assignment } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+    method: 'post', path: '/api/sections/{id}/end',
+    request: { params: IdParam },
+    responses: { 200: { content: { 'application/json': { schema: Section } }, description: 'OK' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).endAssignment(id) : (repo as typeof mem).endAssignment(id);
-    if (!updated) throw new HTTPException(404, { message: 'Assignment not found' });
+    const updated = await repo.endSection(c.req.valid('param').id);
+    if (!updated) throw new HTTPException(404, { message: 'Section not found' });
     return c.json(updated, 200);
   },
 );
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
+// ── Enrollments ───────────────────────────────────────────────────────────────
 
 app.openapi(
-  createRoute({
-    method: 'get', path: '/api/sessions',
-    request: { query: z.object({ view: z.enum(['today', 'this-week', 'calendar']).optional(), teacherId: z.string().optional(), studentId: z.string().optional() }) },
-    responses: ok(z.array(Session)),
-  }),
+  createRoute({ method: 'get', path: '/api/sections/{id}/enrollments', request: { params: IdParam }, responses: ok(z.array(Enrollment)) }),
   async (c) => {
-    const q = c.req.valid('query');
-    const rows = USE_DB ? await (repo as typeof db).listSessions({ view: q.view, teacherId: q.teacherId, studentId: q.studentId }) : (() => {
-      const today = new Date().toISOString().slice(0, 10);
-      return (repo as typeof mem).sessions.filter((s) => (!q.teacherId || s.teacherId === q.teacherId) && (!q.studentId || s.studentId === q.studentId) && (q.view !== 'today' || s.sessionDate === today));
-    })();
+    const rows = await repo.listEnrollments(c.req.valid('param').id);
     return c.json(rows);
   },
 );
 app.openapi(
-  createRoute({ method: 'post', path: '/api/sessions', request: { body: { content: { 'application/json': { schema: CreateSession } } } }, responses: created(Session) }),
+  createRoute({
+    method: 'post', path: '/api/sections/{id}/enrollments',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: Enrollment.omit({ id: true, sectionId: true, createdAt: true, updatedAt: true }).partial({ enrollmentDate: true, notes: true, status: true }) } } } },
+    responses: created(Enrollment),
+  }),
   async (c) => {
+    const sectionId = c.req.valid('param').id;
     const body = c.req.valid('json');
-    const created = USE_DB ? await (repo as typeof db).createSession({ ...body, present: body.attendance === 'Present', absent: body.attendance === 'Absent', late: body.attendance === 'Late', cancelled: body.attendance === 'Cancelled', homeworkSubmitted: false } as Record<string, unknown>) : (repo as typeof mem).create((repo as typeof mem).sessions, {
-      ...body, present: body.attendance === 'Present', absent: body.attendance === 'Absent',
-      late: body.attendance === 'Late', cancelled: body.attendance === 'Cancelled', homeworkSubmitted: false,
-    } as any);
+    const created = await repo.createEnrollment({ ...body, sectionId });
     return c.json(created, 201);
   },
 );
 app.openapi(
   createRoute({
-    method: 'patch', path: '/api/sessions/{id}',
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateSession } } } },
-    responses: { 200: { content: { 'application/json': { schema: Session } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+    method: 'patch', path: '/api/enrollments/{id}',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: Enrollment.omit({ id: true, sectionId: true, createdAt: true, updatedAt: true }).partial() } } } },
+    responses: { 200: { content: { 'application/json': { schema: Enrollment } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateSession(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).sessions, id, c.req.valid('json'));
+    const updated = await repo.updateEnrollment(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
+    if (!updated) throw new HTTPException(404, { message: 'Enrollment not found' });
+    return c.json(updated, 200);
+  },
+);
+
+// ── Class Sessions ────────────────────────────────────────────────────────────
+
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/class-sessions',
+    request: { query: z.object({ sectionId: z.string().optional(), date: z.string().optional(), status: z.enum(['scheduled', 'completed', 'cancelled']).optional(), teacherId: z.string().optional(), view: z.enum(['today']).optional() }) },
+    responses: ok(z.array(ClassSession)),
+  }),
+  async (c) => {
+    const q = c.req.valid('query');
+    const rows = await repo.listClassSessions({ ...q, todayOnly: q.view === 'today' });
+    return c.json(rows);
+  },
+);
+app.openapi(
+  createRoute({ method: 'post', path: '/api/class-sessions', request: { body: { content: { 'application/json': { schema: CreateClassSession } } } }, responses: created(ClassSession) }),
+  async (c) => {
+    const created = await repo.createClassSession(c.req.valid('json') as Record<string, unknown>);
+    return c.json(created, 201);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/class-sessions/bulk',
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({ sessions: z.array(CreateClassSession) }),
+          },
+        },
+      },
+    },
+    responses: created(z.array(ClassSession)),
+  }),
+  async (c) => {
+    const { sessions } = c.req.valid('json');
+    const result = await repo.bulkCreateClassSessions(sessions as Array<Record<string, unknown>>);
+    return c.json(result, 201);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'patch', path: '/api/class-sessions/{id}',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateClassSession } } } },
+    responses: { 200: { content: { 'application/json': { schema: ClassSession } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+  }),
+  async (c) => {
+    const updated = await repo.updateClassSession(c.req.valid('param').id, c.req.valid('json') as Record<string, unknown>);
+    if (!updated) throw new HTTPException(404, { message: 'Session not found' });
+    return c.json(updated, 200);
+  },
+);
+app.openapi(
+  createRoute({
+    method: 'post', path: '/api/class-sessions/{id}/complete',
+    request: { params: IdParam },
+    responses: { 200: { content: { 'application/json': { schema: ClassSession } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+  }),
+  async (c) => {
+    const updated = await repo.updateClassSession(c.req.valid('param').id, { status: 'completed' });
     if (!updated) throw new HTTPException(404, { message: 'Session not found' });
     return c.json(updated, 200);
   },
 );
 
-// ── Homework ──────────────────────────────────────────────────────────────────
+// ── Session Attendance ────────────────────────────────────────────────────────
+
+const AttendanceResponse = z.object({ id: z.string(), classSessionId: z.string(), studentId: z.string(), attendanceStatus: z.string(), present: z.boolean(), absent: z.boolean(), late: z.boolean(), cancelled: z.boolean(), notes: z.string().nullable().optional(), createdAt: z.string(), updatedAt: z.string() });
 
 app.openapi(
-  createRoute({
-    method: 'get', path: '/api/homework',
-    request: { query: z.object({ status: z.enum(['pending', 'completed']).optional(), teacherId: z.string().optional(), studentId: z.string().optional() }) },
-    responses: ok(z.array(Homework)),
-  }),
+  createRoute({ method: 'get', path: '/api/class-sessions/{id}/attendance', request: { params: IdParam }, responses: ok(z.array(AttendanceResponse)) }),
   async (c) => {
-    const q = c.req.valid('query');
-    const rows = USE_DB ? await (repo as typeof db).listHomework({ status: q.status, teacherId: q.teacherId, studentId: q.studentId }) : (repo as typeof mem).homework.filter((h) => (!q.teacherId || h.teacherId === q.teacherId) && (!q.studentId || h.studentId === q.studentId) && (q.status !== 'pending' || !h.submitted) && (q.status !== 'completed' || h.submitted));
+    const rows = await repo.getAttendance(c.req.valid('param').id);
     return c.json(rows);
   },
 );
 app.openapi(
-  createRoute({ method: 'post', path: '/api/homework', request: { body: { content: { 'application/json': { schema: CreateHomework } } } }, responses: created(Homework) }),
+  createRoute({
+    method: 'post', path: '/api/class-sessions/{id}/attendance',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: z.object({ entries: z.array(AttendancePayload) }) } } } },
+    responses: { 200: { content: { 'application/json': { schema: z.array(AttendanceResponse) } }, description: 'OK' } },
+  }),
   async (c) => {
-    const created = USE_DB ? await (repo as typeof db).createHomework({ submitted: false, ...c.req.valid('json') } as Record<string, unknown>) : (repo as typeof mem).create((repo as typeof mem).homework, { submitted: false, ...c.req.valid('json') } as any);
-    return c.json(created, 201);
+    const classSessionId = c.req.valid('param').id;
+    const { entries } = c.req.valid('json');
+    const result = await repo.submitAttendance(classSessionId, entries);
+    const userId = getUserId(c);
+    if (userId) {
+      const user = await repo.getUserFromDB(userId);
+      await repo.logActivity(user?.teacherId ?? userId, 'attendance_marked', classSessionId, undefined, `Attendance marked for ${entries.length} students`);
+    }
+    return c.json(result, 200);
+  },
+);
+
+// ── Session Reports ───────────────────────────────────────────────────────────
+
+const ReportResponse = z.object({ id: z.string(), classSessionId: z.string(), teacherId: z.string(), reportStatus: z.string(), homeworkGiven: z.string().optional(), homeworkSubmitted: z.boolean().optional(), vocabularyCovered: z.string().optional(), grammarCovered: z.string().optional(), speakingPractice: z.string().optional(), readingPractice: z.string().optional(), writingPractice: z.string().optional(), listeningPractice: z.string().optional(), generalNotes: z.string().optional(), createdAt: z.string(), updatedAt: z.string() });
+
+app.openapi(
+  createRoute({ method: 'get', path: '/api/class-sessions/{id}/report', request: { params: IdParam }, responses: { 200: { content: { 'application/json': { schema: ReportResponse.nullable() } }, description: 'OK' } } }),
+  async (c) => {
+    const report = await repo.getReport(c.req.valid('param').id);
+    return c.json(report, 200);
   },
 );
 app.openapi(
   createRoute({
-    method: 'patch', path: '/api/homework/{id}',
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateHomework } } } },
-    responses: { 200: { content: { 'application/json': { schema: Homework } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+    method: 'post', path: '/api/class-sessions/{id}/report',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: CreateSessionReport } } } },
+    responses: { 200: { content: { 'application/json': { schema: ReportResponse.pick({ id: true, classSessionId: true, teacherId: true, reportStatus: true }) } }, description: 'OK' } },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateHomework(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).homework, id, c.req.valid('json'));
-    if (!updated) throw new HTTPException(404, { message: 'Homework not found' });
-    return c.json(updated, 200);
+    const classSessionId = c.req.valid('param').id;
+    const userId = getUserId(c);
+    const user = userId ? await repo.getUserFromDB(userId) : null;
+    if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
+    const report = await repo.createReport(classSessionId, user.teacherId ?? user.id, c.req.valid('json') as Record<string, unknown>);
+    await repo.logActivity(user.teacherId ?? user.id, 'report_submitted', classSessionId, undefined, 'Session report submitted');
+    return c.json(report, 200);
   },
 );
 
-// ── Progress ──────────────────────────────────────────────────────────────────
+// ── Import ────────────────────────────────────────────────────────────────────
 
-app.openapi(createRoute({ method: 'get', path: '/api/progress', responses: ok(z.array(Progress)) }), async (c) => {
-  const rows = USE_DB ? await (repo as typeof db).listProgress() : (repo as typeof mem).progress;
-  return c.json(rows);
-});
+app.openapi(
+  createRoute({ method: 'post', path: '/api/import/students', responses: { 200: { content: { 'application/json': { schema: ImportResult } }, description: 'OK' } } }),
+  async (c) => {
+    const contentType = c.req.header('content-type') ?? '';
+    if (!contentType.includes('multipart/form-data')) {
+      throw new HTTPException(400, { message: 'Expected multipart/form-data with a "file" field' });
+    }
+    const body = await c.req.parseBody();
+    const file = body['file'];
+    if (!file || typeof file === 'string') {
+      throw new HTTPException(400, { message: 'No file uploaded' });
+    }
+    const XLSX = await import('xlsx');
+    const arrayBuffer = await (file as File).arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) throw new HTTPException(400, { message: 'Spreadsheet is empty' });
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName]!);
+
+    const result = await repo.importStudents(rows);
+    return c.json(result, 200);
+  },
+);
+
+// ── Activity Log ─────────────────────────────────────────────────────────────
+
+const ActivityLogResponse = z.object({ id: z.string(), teacherId: z.string(), activityType: z.string(), classSessionId: z.string().optional(), sectionId: z.string().optional(), activityDate: z.string(), description: z.string().optional(), metadata: z.record(z.string(), z.unknown()).optional(), createdAt: z.string() });
+
 app.openapi(
   createRoute({
-    method: 'patch', path: '/api/progress/{id}',
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateProgress } } } },
-    responses: { 200: { content: { 'application/json': { schema: Progress } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+    method: 'get', path: '/api/activity-log',
+    request: { query: z.object({ teacherId: z.string().optional(), startDate: z.string().optional(), endDate: z.string().optional() }) },
+    responses: ok(z.array(ActivityLogResponse)),
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const updated = USE_DB ? await (repo as typeof db).updateProgress(id, c.req.valid('json') as Record<string, unknown>) : (repo as typeof mem).update((repo as typeof mem).progress, id, c.req.valid('json'));
-    if (!updated) throw new HTTPException(404, { message: 'Progress not found' });
-    return c.json(updated, 200);
+    const q = c.req.valid('query');
+    const rows = await repo.getActivityLog({ teacherId: q.teacherId, startDate: q.startDate, endDate: q.endDate });
+    return c.json(rows);
   },
 );
 
-// ── Performance ───────────────────────────────────────────────────────────────
+// ── Reports Analytics ────────────────────────────────────────────────────────
 
-app.openapi(createRoute({ method: 'get', path: '/api/performance/teachers', responses: ok(z.array(TeacherPerformance)) }), async (c) => {
-  const rows = USE_DB ? await (repo as typeof db).performance() : (repo as typeof mem).performance();
-  return c.json(rows);
-});
-app.openapi(createRoute({ method: 'get', path: '/api/performance/teachers/{id}', request: { params: IdParam }, responses: ok(z.array(TeacherPerformance)) }), async (c) => {
-  const rows = USE_DB ? await (repo as typeof db).performance(c.req.valid('param').id) : (repo as typeof mem).performance(c.req.valid('param').id);
-  return c.json(rows);
+const ReportsAnalyticsResponse = z.object({
+  studentsWithLowAttendance: z.array(Student),
+  teachersMissingLessonReports: z.array(Teacher),
+  studentsBehindSchedule: z.array(Student),
 });
 
-// ── Reports ───────────────────────────────────────────────────────────────────
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/reports/analytics',
+    request: { query: z.object({ teacherId: z.string().optional() }) },
+    responses: ok(ReportsAnalyticsResponse),
+  }),
+  async (c) => {
+    const q = c.req.valid('query');
+    const data = await repo.reports(q.teacherId);
+    return c.json(data);
+  },
+);
 
-const StudentPageData = z.object({ student: Student, teacher: Teacher.optional(), course: Course.optional(), attendanceHistory: z.array(Session), lessonHistory: z.array(Session), homework: z.array(Homework), progress: Progress.optional(), teacherNotes: z.array(z.string()) });
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/payments',
+    request: { query: z.object({ month: z.string().optional(), teacherId: z.string().optional() }) },
+    responses: ok(z.array(PaymentSummary)),
+  }),
+  async (c) => {
+    const q = c.req.valid('query');
+    const month = q.month ?? new Date().toISOString().slice(0, 7);
+    const rows = await repo.paymentSummary(month, q.teacherId);
+    return c.json(rows);
+  },
+);
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 app.openapi(createRoute({ method: 'get', path: '/api/reports/admin', responses: ok(DashboardData) }), async (c) => {
-  const data = USE_DB ? await (repo as typeof db).dashboard() : (repo as typeof mem).dashboard();
+  const data = await repo.dashboard();
   return c.json(data);
 });
-app.openapi(createRoute({ method: 'get', path: '/api/reports/teachers/{id}', request: { params: IdParam }, responses: ok(DashboardData) }), async (c) => {
-  const data = USE_DB ? await (repo as typeof db).dashboard(c.req.valid('param').id) : (repo as typeof mem).dashboard(c.req.valid('param').id);
-  return c.json(data);
-});
+
 app.openapi(
-  createRoute({
-    method: 'get', path: '/api/reports/students/{id}', request: { params: IdParam },
-    responses: { 200: { content: { 'application/json': { schema: StudentPageData } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
-  }),
+  createRoute({ method: 'get', path: '/api/reports/teachers/{id}', request: { params: IdParam }, responses: ok(DashboardData) }),
   async (c) => {
-    const studentId = c.req.valid('param').id;
-    if (USE_DB) {
-      const dbRepo = repo as typeof db;
-      const allStudents = await dbRepo.listStudents();
-      const student = allStudents.find((s) => s.id === studentId);
-      if (!student) throw new HTTPException(404, { message: 'Student not found' });
-      const [allTeachers, allCourses, allSessions, allHomework, allProgress] = await Promise.all([
-        dbRepo.listTeachers(), dbRepo.listCourses(), dbRepo.listSessions({ studentId }),
-        dbRepo.listHomework({ studentId }), dbRepo.listProgress(),
-      ]);
-      const lessonHistory = allSessions;
-      const progress = allProgress.find((p) => p.studentId === studentId);
-      return c.json({
-        student, teacher: allTeachers.find((t) => t.id === student.assignedTeacherId),
-        course: allCourses.find((c) => c.id === student.assignedCourseId), attendanceHistory: lessonHistory, lessonHistory,
-        homework: allHomework, progress,
-        teacherNotes: lessonHistory.map((s) => s.teacherNotes).filter((n): n is string => Boolean(n)),
-      }, 200);
-    }
-    const student = (repo as typeof mem).students.find((s) => s.id === studentId);
-    if (!student) throw new HTTPException(404, { message: 'Student not found' });
-    const lessonHistory = (repo as typeof mem).sessions.filter((s) => s.studentId === studentId);
-    return c.json({
-      student, teacher: (repo as typeof mem).teachers.find((t) => t.id === student.assignedTeacherId),
-      course: (repo as typeof mem).courses.find((c) => c.id === student.assignedCourseId), attendanceHistory: lessonHistory, lessonHistory,
-      homework: (repo as typeof mem).homework.filter((h) => h.studentId === studentId),
-      progress: (repo as typeof mem).progress.find((p) => p.studentId === studentId),
-      teacherNotes: lessonHistory.map((s) => s.teacherNotes).filter((n): n is string => Boolean(n)),
-    }, 200);
+    const data = await repo.dashboard(c.req.valid('param').id);
+    return c.json(data);
   },
 );
+
+const StudentPageResponse = z.object({ student: Student, sections: z.array(Section), enrollments: z.array(Enrollment), attendance: z.array(z.any()) });
+
+app.openapi(
+  createRoute({
+    method: 'get', path: '/api/reports/students/{id}',
+    request: { params: IdParam },
+    responses: { 200: { content: { 'application/json': { schema: StudentPageResponse } }, description: 'OK' }, 404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' } },
+  }),
+  async (c) => {
+    const data = await repo.studentPage(c.req.valid('param').id);
+    if (!data) throw new HTTPException(404, { message: 'Student not found' });
+    return c.json(data, 200);
+  },
+);
+
+// ── Docs ──────────────────────────────────────────────────────────────────────
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',
-  info: { title: 'Speak To Reach Management API', version: '1.0.0', description: 'Typesafe Hono RPC API for teachers, students, classes, sessions, attendance, homework, progress, reports, and Notion setup.' },
+  info: { title: 'Speak To Reach Management API', version: '2.0.0', description: 'Typesafe Hono RPC API for sections, attendance, reports, payments, and teacher management.' },
 });
 
 app.get('/api/docs', swaggerUI({ url: '/openapi.json' }));

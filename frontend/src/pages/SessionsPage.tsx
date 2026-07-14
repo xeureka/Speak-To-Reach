@@ -1,132 +1,98 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { HiOutlineCheckCircle } from 'react-icons/hi2';
+import { toast } from 'sonner';
 
 import { api } from '../api';
-import { CalendarView } from '../components/lists/CalendarView';
-import { SessionList } from '../components/lists/SessionList';
-import { Page } from '../components/ui/Page';
-import { QueryFeedback } from '../components/ui/QueryFeedback';
-import { ATTENDANCE_OPTIONS, SESSION_VIEWS } from '../lib/constants';
-
-const VIEW_LABELS: Record<(typeof SESSION_VIEWS)[number], string> = {
-  today: 'Today',
-  'this-week': 'This Week',
-  calendar: 'Calendar',
-};
+import { useAuth } from '../auth';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 
 export function SessionsPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<(typeof SESSION_VIEWS)[number]>('today');
+  const [view, setView] = useState<'today' | 'all'>('today');
+
+  const isTeacher = user?.role === 'teacher';
+  const teacherId = isTeacher ? user?.teacherId : undefined;
+
   const sessions = useQuery({
-    queryKey: ['sessions', view],
-    queryFn: () => api.sessions({ view }),
+    queryKey: ['sessions', view, teacherId],
+    queryFn: () => api.classSessions({ ...(view === 'today' ? { view: 'today' as const } : {}), teacherId }),
+    retry: false,
+  });
+  const sections = useQuery({
+    queryKey: ['sections', teacherId],
+    queryFn: () => api.sections(teacherId ? { teacherId } : {}),
     retry: false,
   });
 
-  const [showForm, setShowForm] = useState(false);
-  const [fields, setFields] = useState({
-    sessionName: 'New Session',
-    sessionDate: new Date().toISOString().slice(0, 10),
-    teacherId: 'teacher-1',
-    studentId: 'student-1',
-    assignmentId: 'assignment-1',
-    lessonNumber: 1,
-    lessonTitle: 'Lesson',
-    attendance: 'Present',
-    durationMinutes: 60,
-  });
+  const sectionMap = new Map((sections.data ?? []).map(s => [s.id, s]));
 
-  const create = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.createSession(body),
-    onSuccess: () => {
+  const handleComplete = async (id: string) => {
+    try {
+      await api.completeClassSession(id);
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      setShowForm(false);
-    },
-  });
+      toast.success('Session completed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  };
 
   return (
-    <Page title="Class Sessions" subtitle="One completed lesson per record.">
-      <div className="toolbar">
-        {SESSION_VIEWS.map((option) => (
-          <button
-            className={view === option ? 'active' : ''}
-            key={option}
-            type="button"
-            onClick={() => setView(option)}
-          >
-            {VIEW_LABELS[option]}
-          </button>
-        ))}
-        <button type="button" className="btn-primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ New Session'}
-        </button>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sessions</h1>
+          <p className="text-muted-foreground mt-1">{isTeacher ? 'Your class sessions.' : 'View and manage class sessions.'}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant={view === 'today' ? 'default' : 'outline'} size="sm" onClick={() => setView('today')}>Today</Button>
+          <Button variant={view === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setView('all')}>All</Button>
+        </div>
       </div>
 
-      {showForm && (
-        <form
-          className="inline-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            create.mutate(fields);
-          }}
-        >
-          <label className="form-field">
-            <span>Session name</span>
-            <input
-              value={fields.sessionName}
-              onChange={(event) => setFields({ ...fields, sessionName: event.target.value })}
-              placeholder="Session name"
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span>Lesson title</span>
-            <input
-              value={fields.lessonTitle}
-              onChange={(event) => setFields({ ...fields, lessonTitle: event.target.value })}
-              placeholder="Lesson title"
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span>Date</span>
-            <input
-              value={fields.sessionDate}
-              onChange={(event) => setFields({ ...fields, sessionDate: event.target.value })}
-              type="date"
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span>Attendance</span>
-            <select
-              value={fields.attendance}
-              onChange={(event) => setFields({ ...fields, attendance: event.target.value })}
-            >
-              {ATTENDANCE_OPTIONS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending ? 'Saving...' : 'Save Session'}
-          </button>
-        </form>
-      )}
-
-      <QueryFeedback
-        isLoading={sessions.isLoading}
-        isError={sessions.isError}
-        error={sessions.error}
-        isEmpty={view !== 'calendar' && (sessions.data?.length ?? 0) === 0}
-        emptyMessage="No sessions found for this view."
-      >
-        {view === 'calendar' ? (
-          <CalendarView rows={sessions.data ?? []} />
-        ) : (
-          <SessionList rows={sessions.data ?? []} />
-        )}
-      </QueryFeedback>
-    </Page>
+      <Card>
+        <CardHeader><CardTitle>{view === 'today' ? "Today's Sessions" : 'All Sessions'}</CardTitle></CardHeader>
+        <CardContent>
+          {sessions.isLoading && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}</div>}
+          {sessions.data && sessions.data.length === 0 && <p className="text-sm text-muted-foreground py-8 text-center">No sessions found.</p>}
+          {sessions.data && sessions.data.length > 0 && (
+            <Table>
+              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Section</TableHead><TableHead>Lesson</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableBody>
+                {sessions.data.map(s => {
+                  const sec = sectionMap.get(s.sectionId);
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell>{s.sessionDate}</TableCell>
+                      <TableCell className="font-medium">{sec?.sectionName ?? s.sectionId}</TableCell>
+                      <TableCell>{s.lessonTitle ?? `#${s.sessionNumber}`}</TableCell>
+                      <TableCell><Badge variant={s.sessionType === 'private' ? 'neutral' : 'success'}>{s.sessionType}</Badge></TableCell>
+                      <TableCell><Badge variant={s.status === 'completed' ? 'success' : s.status === 'cancelled' ? 'destructive' : 'neutral'}>{s.status}</Badge></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1.5">
+                          <Link to="/sessions/$sessionId" params={{ sessionId: s.id }}>
+                            <Button variant="ghost" size="sm">Open</Button>
+                          </Link>
+                          {s.status !== 'completed' && (
+                            <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 gap-1" onClick={() => handleComplete(s.id)}>
+                              <HiOutlineCheckCircle size={14} /> Done
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

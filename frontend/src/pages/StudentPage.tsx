@@ -1,114 +1,73 @@
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
+import { useParams, Link } from '@tanstack/react-router';
+import { HiOutlineArrowLeft } from 'react-icons/hi2';
 
 import { api } from '../api';
-import { AssignmentList } from '../components/lists/AssignmentList';
-import { HomeworkList } from '../components/lists/HomeworkList';
-import { SessionList } from '../components/lists/SessionList';
-import { ChangePasswordForm } from '../components/forms/ChangePasswordForm';
-import { Panel } from '../components/ui/Panel';
-import { Page } from '../components/ui/Page';
-import { QueryFeedback } from '../components/ui/QueryFeedback';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 export function StudentPage() {
   const { studentId } = useParams({ from: '/protected/students/$studentId' });
+  const data = useQuery({ queryKey: ['student', studentId], queryFn: () => api.studentPage(studentId), retry: false });
 
-  const data = useQuery({
-    queryKey: ['student', studentId],
-    queryFn: () => api.studentPage(studentId),
-    retry: false,
-  });
-
-  const assignments = useQuery({
-    queryKey: ['assignments', 'student', studentId],
-    queryFn: () => api.assignments({ studentId }),
-    retry: false,
-  });
-
-  const sessions = useQuery({
-    queryKey: ['sessions', 'student', studentId],
-    queryFn: () => api.sessions({ studentId }),
-    retry: false,
-  });
-
-  const homework = useQuery({
-    queryKey: ['homework', 'student', studentId],
-    queryFn: () => api.homework({ studentId }),
-    retry: false,
-  });
-
-  const studentInfo = data.data?.student;
+  const student = data.data?.student;
 
   return (
-    <Page
-      title={studentInfo?.studentName ?? 'Student'}
-      subtitle={`Level: ${studentInfo?.level ?? '...'}`}
-    >
-      <QueryFeedback
-        isLoading={data.isLoading}
-        isError={data.isError}
-        error={data.error}
-        isEmpty={!data.data}
-        emptyMessage="Student profile could not be loaded."
-      >
-        {data.data && (
-          <>
-            <div className="dashboard-grid">
-              <Panel title="My Teacher">
-                <div className="info-block">
-                  <p>{data.data.teacher?.teacherName ?? 'No teacher assigned.'}</p>
-                  {data.data.teacher?.email && <small>{data.data.teacher.email}</small>}
+    <div className="space-y-8">
+      <div>
+        <Link to="/students" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
+          <HiOutlineArrowLeft size={16} /> Back to Students
+        </Link>
+        <h1 className="text-3xl font-bold tracking-tight">{student?.studentName ?? 'Student'}</h1>
+        <p className="text-muted-foreground mt-1">Level: {student?.level ?? '...'} &middot; {student?.classType}</p>
+      </div>
+
+      {data.isLoading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {Array.from({ length: 2 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="p-6"><div className="h-40 bg-muted/50 rounded-xl" /></CardContent></Card>)}
+        </div>
+      )}
+
+      {data.data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><CardTitle>Sections</CardTitle></CardHeader>
+            <CardContent>
+              {data.data.sections.length === 0 ? <p className="text-sm text-muted-foreground py-8 text-center">Not enrolled in any sections.</p> : (
+                <div className="space-y-2">
+                  {data.data.sections.map(s => (
+                    <Link key={s.id} to={`/sections/$sectionId`} params={{ sectionId: s.id }} className="block p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                      <div className="font-medium text-sm group-hover:text-primary transition-colors">{s.sectionName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{s.scheduleDays} &middot; {s.startTime}</div>
+                    </Link>
+                  ))}
                 </div>
-              </Panel>
+              )}
+            </CardContent>
+          </Card>
 
-              <Panel title="My Schedule">
-                <QueryFeedback
-                  isLoading={assignments.isLoading}
-                  isError={assignments.isError}
-                  error={assignments.error}
-                  isEmpty={(assignments.data?.length ?? 0) === 0}
-                  emptyMessage="No assignments found."
-                  skeletonHeight={160}
-                >
-                  <AssignmentList rows={assignments.data ?? []} />
-                </QueryFeedback>
-              </Panel>
-            </div>
-
-            <div className="dashboard-grid page-section">
-              <Panel title="Lesson History">
-                <QueryFeedback
-                  isLoading={sessions.isLoading}
-                  isError={sessions.isError}
-                  error={sessions.error}
-                  isEmpty={(sessions.data?.length ?? 0) === 0}
-                  emptyMessage="No lesson history yet."
-                  skeletonHeight={160}
-                >
-                  <SessionList rows={sessions.data ?? []} />
-                </QueryFeedback>
-              </Panel>
-
-              <Panel title="Homework">
-                <QueryFeedback
-                  isLoading={homework.isLoading}
-                  isError={homework.isError}
-                  error={homework.error}
-                  isEmpty={(homework.data?.length ?? 0) === 0}
-                  emptyMessage="No homework assigned."
-                  skeletonHeight={160}
-                >
-                  <HomeworkList rows={homework.data ?? []} />
-                </QueryFeedback>
-              </Panel>
-            </div>
-
-            <div className="page-section">
-              <ChangePasswordForm />
-            </div>
-          </>
-        )}
-      </QueryFeedback>
-    </Page>
+          <Card>
+            <CardHeader><CardTitle>Attendance History</CardTitle></CardHeader>
+            <CardContent>
+              {data.data.attendance.length === 0 ? <p className="text-sm text-muted-foreground py-8 text-center">No attendance records.</p> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Session</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {data.data.attendance.slice(0, 10).map(a => (
+                      <TableRow key={a.id}>
+                        <TableCell className="text-sm font-mono">{a.classSessionId.slice(0, 12)}...</TableCell>
+                        <TableCell><Badge variant={a.present ? 'success' : a.absent ? 'destructive' : 'warning'}>{a.attendanceStatus}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,69 +1,46 @@
-:root {
-  --bg: #f7f8fa;
-  --surface: #ffffff;
-  --surface-soft: #f1f5f4;
-  --text: #1e2930;
-  --muted: #68767f;
-  --border: #dce3e1;
-  --accent: #087f8c;
-  --accent-strong: #075e69;
-  --success: #2f8f5b;
-  --warning: #b7791f;
-  --shadow: 0 14px 34px rgba(22, 39, 45, 0.08);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f7f8fa;
+  --color-foreground: #1e2930;
+  --color-card: #ffffff;
+  --color-card-foreground: #1e2930;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1e2930;
+  --color-primary: #087f8c;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f5f4;
+  --color-secondary-foreground: #1e2930;
+  --color-muted: #f1f5f4;
+  --color-muted-foreground: #68767f;
+  --color-accent: #f1f5f4;
+  --color-accent-foreground: #1e2930;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #dce3e1;
+  --color-input: #dce3e1;
+  --color-ring: #087f8c;
+  --color-success: #2f8f5b;
+  --color-success-foreground: #ffffff;
+  --color-warning: #b7791f;
+  --color-warning-foreground: #ffffff;
+  --color-surface: #13292d;
+  --color-surface-foreground: #eef7f6;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100svh;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 7px;
-  padding: 9px 12px;
-  cursor: pointer;
-}
-
-button:hover,
-button.active {
-  border-color: var(--accent);
-  color: var(--accent-strong);
-  background: #edfafa;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-a {
-  color: var(--accent-strong);
-  text-decoration: none;
-}
-
-h1,
-h2,
-p {
-  margin: 0;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
 }

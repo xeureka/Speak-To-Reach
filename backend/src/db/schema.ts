@@ -1,5 +1,5 @@
 import {
-  boolean, date, index, integer, numeric, pgEnum, pgTable, text, time, timestamp, varchar,
+  boolean, date, index, integer, jsonb, pgEnum, pgTable, text, time, timestamp, varchar,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -10,16 +10,18 @@ const audit = {
   updatedBy: text('updated_by'),
 };
 
-export const userRole = pgEnum('user_role', ['admin', 'teacher', 'student']);
+export const userRole = pgEnum('user_role', ['admin', 'teacher']);
 export const teacherStatus = pgEnum('teacher_status', ['active', 'inactive']);
 export const studentLevel = pgEnum('student_level', [
   'Beginner', 'Elementary', 'Pre-Intermediate', 'Intermediate', 'Upper Intermediate', 'Advanced',
 ]);
-export const classType = pgEnum('class_type', ['Private', 'Mini Group']);
+export const classType = pgEnum('class_type', ['Private', 'Mini Group', 'Group']);
 export const studentStatus = pgEnum('student_status', ['Active', 'Paused', 'Completed']);
-export const assignmentStatus = pgEnum('assignment_status', ['Active', 'Upcoming', 'Ended', 'Cancelled']);
-export const deliveryMode = pgEnum('delivery_mode', ['Classroom', 'Online', 'Private', 'Mini Group']);
 export const attendanceStatus = pgEnum('attendance_status', ['Present', 'Absent', 'Late', 'Cancelled']);
+export const sectionStatus = pgEnum('section_status', ['active', 'inactive', 'completed']);
+export const sessionType = pgEnum('session_type', ['private', 'group']);
+export const reportStatus = pgEnum('report_status', ['draft', 'submitted']);
+export const activityType = pgEnum('activity_type', ['class_taught', 'report_submitted', 'attendance_marked']);
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -28,7 +30,6 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role: userRole('role').notNull().default('teacher'),
   teacherId: text('teacher_id'),
-  studentId: text('student_id'),
   ...audit,
 });
 
@@ -72,8 +73,6 @@ export const students = pgTable(
     classType: classType('class_type').notNull(),
     status: studentStatus('status').notNull().default('Active'),
     registrationDate: date('registration_date').notNull(),
-    assignedTeacherId: text('assigned_teacher_id').references(() => teachers.id),
-    assignedCourseId: text('assigned_course_id').references(() => courses.id),
     notes: text('notes'),
     ...audit,
   },
@@ -81,181 +80,214 @@ export const students = pgTable(
     index('students_status_idx').on(table.status),
     index('students_class_type_idx').on(table.classType),
     index('students_level_idx').on(table.level),
-    index('students_teacher_idx').on(table.assignedTeacherId),
-    index('students_course_idx').on(table.assignedCourseId),
   ],
 );
 
-export const assignments = pgTable(
-  'assignments',
+export const sections = pgTable(
+  'sections',
   {
     id: text('id').primaryKey(),
-    assignmentName: varchar('assignment_name', { length: 220 }).notNull(),
+    sectionName: varchar('section_name', { length: 200 }).notNull(),
+    classType: classType('class_type').notNull(),
     teacherId: text('teacher_id').notNull().references(() => teachers.id),
-    studentId: text('student_id').notNull().references(() => students.id),
     courseId: text('course_id').notNull().references(() => courses.id),
-    days: varchar('days', { length: 120 }).notNull(),
+    scheduleDays: varchar('schedule_days', { length: 120 }).notNull(),
     startTime: time('start_time').notNull(),
     endTime: time('end_time'),
     startDate: date('start_date').notNull(),
     endDate: date('end_date'),
-    mode: deliveryMode('mode').notNull(),
-    status: assignmentStatus('status').notNull().default('Active'),
+    maxStudents: integer('max_students').default(20),
+    status: sectionStatus('status').notNull().default('active'),
+    notes: text('notes'),
     ...audit,
   },
   (table) => [
-    index('assignments_teacher_idx').on(table.teacherId),
-    index('assignments_student_idx').on(table.studentId),
-    index('assignments_course_idx').on(table.courseId),
-    index('assignments_status_idx').on(table.status),
+    index('sections_teacher_idx').on(table.teacherId),
+    index('sections_course_idx').on(table.courseId),
+    index('sections_status_idx').on(table.status),
+    index('sections_class_type_idx').on(table.classType),
   ],
 );
 
-export const sessions = pgTable(
-  'sessions',
+export const enrollments = pgTable(
+  'enrollments',
   {
     id: text('id').primaryKey(),
-    sessionName: varchar('session_name', { length: 240 }).notNull(),
-    sessionDate: date('session_date').notNull(),
-    teacherId: text('teacher_id').notNull().references(() => teachers.id),
     studentId: text('student_id').notNull().references(() => students.id),
-    assignmentId: text('assignment_id').notNull().references(() => assignments.id),
-    lessonNumber: integer('lesson_number').notNull(),
-    lessonTitle: varchar('lesson_title', { length: 240 }).notNull(),
-    attendance: attendanceStatus('attendance').notNull(),
+    sectionId: text('section_id').notNull().references(() => sections.id),
+    enrollmentDate: date('enrollment_date').notNull().defaultNow(),
+    status: varchar('status', { length: 20 }).notNull().default('active'),
+    notes: text('notes'),
+    ...audit,
+  },
+  (table) => [
+    index('enrollments_student_idx').on(table.studentId),
+    index('enrollments_section_idx').on(table.sectionId),
+  ],
+);
+
+export const classSessions = pgTable(
+  'class_sessions',
+  {
+    id: text('id').primaryKey(),
+    sectionId: text('section_id').notNull().references(() => sections.id),
+    sessionDate: date('session_date').notNull(),
+    sessionNumber: integer('session_number').notNull(),
+    lessonTitle: varchar('lesson_title', { length: 240 }),
+    lessonNumber: integer('lesson_number'),
+    sessionType: sessionType('session_type').notNull(),
+    durationMinutes: integer('duration_minutes').default(60),
+    status: varchar('status', { length: 20 }).notNull().default('scheduled'),
+    teacherNotes: text('teacher_notes'),
+    ...audit,
+  },
+  (table) => [
+    index('class_sessions_section_idx').on(table.sectionId),
+    index('class_sessions_date_idx').on(table.sessionDate),
+    index('class_sessions_status_idx').on(table.status),
+  ],
+);
+
+export const sessionAttendance = pgTable(
+  'session_attendance',
+  {
+    id: text('id').primaryKey(),
+    classSessionId: text('class_session_id').notNull().references(() => classSessions.id),
+    studentId: text('student_id').notNull().references(() => students.id),
+    attendanceStatus: attendanceStatus('attendance_status').notNull(),
     present: boolean('present').notNull().default(false),
     absent: boolean('absent').notNull().default(false),
     late: boolean('late').notNull().default(false),
     cancelled: boolean('cancelled').notNull().default(false),
-    durationMinutes: integer('duration_minutes'),
+    notes: text('notes'),
+    ...audit,
+  },
+  (table) => [
+    index('session_attendance_session_idx').on(table.classSessionId),
+    index('session_attendance_student_idx').on(table.studentId),
+  ],
+);
+
+export const sessionReports = pgTable(
+  'session_reports',
+  {
+    id: text('id').primaryKey(),
+    classSessionId: text('class_session_id').notNull().references(() => classSessions.id),
+    teacherId: text('teacher_id').notNull().references(() => teachers.id),
+    reportStatus: reportStatus('report_status').notNull().default('draft'),
     homeworkGiven: text('homework_given'),
-    homeworkSubmitted: boolean('homework_submitted').notNull().default(false),
+    homeworkSubmitted: boolean('homework_submitted').default(false),
     vocabularyCovered: text('vocabulary_covered'),
     grammarCovered: text('grammar_covered'),
     speakingPractice: text('speaking_practice'),
     readingPractice: text('reading_practice'),
     writingPractice: text('writing_practice'),
     listeningPractice: text('listening_practice'),
-    teacherNotes: text('teacher_notes'),
+    generalNotes: text('general_notes'),
     ...audit,
   },
   (table) => [
-    index('sessions_teacher_date_idx').on(table.teacherId, table.sessionDate),
-    index('sessions_student_date_idx').on(table.studentId, table.sessionDate),
-    index('sessions_assignment_idx').on(table.assignmentId),
-    index('sessions_attendance_idx').on(table.attendance),
-    index('sessions_date_idx').on(table.sessionDate),
+    index('session_reports_session_idx').on(table.classSessionId),
+    index('session_reports_teacher_idx').on(table.teacherId),
   ],
 );
 
-export const homework = pgTable(
-  'homework',
+export const teacherActivityLog = pgTable(
+  'teacher_activity_log',
   {
     id: text('id').primaryKey(),
-    homework: text('homework').notNull(),
-    studentId: text('student_id').notNull().references(() => students.id),
     teacherId: text('teacher_id').notNull().references(() => teachers.id),
-    sessionId: text('session_id').references(() => sessions.id),
-    dueDate: date('due_date').notNull(),
-    submitted: boolean('submitted').notNull().default(false),
-    score: numeric('score', { precision: 5, scale: 2 }),
-    feedback: text('feedback'),
-    ...audit,
+    activityType: activityType('activity_type').notNull(),
+    classSessionId: text('class_session_id').references(() => classSessions.id),
+    sectionId: text('section_id').references(() => sections.id),
+    activityDate: date('activity_date').notNull(),
+    description: text('description'),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index('homework_student_idx').on(table.studentId),
-    index('homework_teacher_idx').on(table.teacherId),
-    index('homework_due_idx').on(table.dueDate),
-    index('homework_submitted_idx').on(table.submitted),
+    index('activity_log_teacher_idx').on(table.teacherId),
+    index('activity_log_date_idx').on(table.activityDate),
+    index('activity_log_type_idx').on(table.activityType),
   ],
 );
 
-export const progress = pgTable(
-  'progress',
+export const studentPreferences = pgTable(
+  'student_preferences',
   {
     id: text('id').primaryKey(),
     studentId: text('student_id').notNull().references(() => students.id),
-    teacherId: text('teacher_id').notNull().references(() => teachers.id),
-    currentUnit: integer('current_unit').notNull().default(1),
-    currentLesson: integer('current_lesson').notNull().default(1),
-    lastLessonDate: date('last_lesson_date'),
-    completionPercentage: numeric('completion_percentage', { precision: 5, scale: 2 }).notNull().default('0'),
-    strengths: text('strengths'),
-    weaknesses: text('weaknesses'),
-    recommendedFocus: text('recommended_focus'),
-    manualOverrideReason: text('manual_override_reason'),
-    ...audit,
-  },
-  (table) => [
-    index('progress_student_idx').on(table.studentId),
-    index('progress_teacher_idx').on(table.teacherId),
-  ],
-);
-
-export const teacherPerformance = pgTable(
-  'teacher_performance',
-  {
-    id: text('id').primaryKey(),
-    teacherId: text('teacher_id').notNull().references(() => teachers.id),
-    totalAssignedClasses: integer('total_assigned_classes').notNull().default(0),
-    classesCompleted: integer('classes_completed').notNull().default(0),
-    attendanceReportsSubmitted: integer('attendance_reports_submitted').notNull().default(0),
-    studentAttendancePercentage: numeric('student_attendance_percentage', { precision: 5, scale: 2 }).notNull().default('0'),
-    homeworkCompletionPercentage: numeric('homework_completion_percentage', { precision: 5, scale: 2 }).notNull().default('0'),
+    preferredDays: varchar('preferred_days', { length: 120 }),
+    preferredTimeStart: time('preferred_time_start'),
+    preferredTimeEnd: time('preferred_time_end'),
+    preferredClassType: classType('preferred_class_type'),
+    preferredTeacherId: text('preferred_teacher_id').references(() => teachers.id),
     notes: text('notes'),
     ...audit,
   },
-  (table) => [index('teacher_performance_teacher_idx').on(table.teacherId)],
+  (table) => [
+    index('student_preferences_student_idx').on(table.studentId),
+  ],
 );
 
-export const teachersRelations = relations(teachers, ({ many }) => ({
-  students: many(students),
-  assignments: many(assignments),
-  sessions: many(sessions),
-  homework: many(homework),
-  progress: many(progress),
-  performance: many(teacherPerformance),
+// ── Relations ─────────────────────────────────────────────────────────────────
+
+export const usersRelations = relations(users, ({ one }) => ({
+  teacher: one(teachers, { fields: [users.teacherId], references: [teachers.id] }),
 }));
 
-export const studentsRelations = relations(students, ({ one, many }) => ({
-  assignedTeacher: one(teachers, { fields: [students.assignedTeacherId], references: [teachers.id] }),
-  assignedCourse: one(courses, { fields: [students.assignedCourseId], references: [courses.id] }),
-  assignments: many(assignments),
-  sessions: many(sessions),
-  homework: many(homework),
-  progress: many(progress),
+export const teachersRelations = relations(teachers, ({ many }) => ({
+  sections: many(sections),
+  sessions: many(classSessions),
+  reports: many(sessionReports),
+  activityLog: many(teacherActivityLog),
+}));
+
+export const studentsRelations = relations(students, ({ many }) => ({
+  enrollments: many(enrollments),
+  attendance: many(sessionAttendance),
+  preferences: many(studentPreferences),
 }));
 
 export const coursesRelations = relations(courses, ({ many }) => ({
-  students: many(students),
-  assignments: many(assignments),
+  sections: many(sections),
 }));
 
-export const assignmentsRelations = relations(assignments, ({ one, many }) => ({
-  teacher: one(teachers, { fields: [assignments.teacherId], references: [teachers.id] }),
-  student: one(students, { fields: [assignments.studentId], references: [students.id] }),
-  course: one(courses, { fields: [assignments.courseId], references: [courses.id] }),
-  sessions: many(sessions),
+export const sectionsRelations = relations(sections, ({ one, many }) => ({
+  teacher: one(teachers, { fields: [sections.teacherId], references: [teachers.id] }),
+  course: one(courses, { fields: [sections.courseId], references: [courses.id] }),
+  enrollments: many(enrollments),
+  classSessions: many(classSessions),
 }));
 
-export const sessionsRelations = relations(sessions, ({ one, many }) => ({
-  teacher: one(teachers, { fields: [sessions.teacherId], references: [teachers.id] }),
-  student: one(students, { fields: [sessions.studentId], references: [students.id] }),
-  assignment: one(assignments, { fields: [sessions.assignmentId], references: [assignments.id] }),
-  homework: many(homework),
+export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
+  student: one(students, { fields: [enrollments.studentId], references: [students.id] }),
+  section: one(sections, { fields: [enrollments.sectionId], references: [sections.id] }),
 }));
 
-export const homeworkRelations = relations(homework, ({ one }) => ({
-  student: one(students, { fields: [homework.studentId], references: [students.id] }),
-  teacher: one(teachers, { fields: [homework.teacherId], references: [teachers.id] }),
-  session: one(sessions, { fields: [homework.sessionId], references: [sessions.id] }),
+export const classSessionsRelations = relations(classSessions, ({ one, many }) => ({
+  section: one(sections, { fields: [classSessions.sectionId], references: [sections.id] }),
+  attendance: many(sessionAttendance),
+  report: one(sessionReports),
 }));
 
-export const progressRelations = relations(progress, ({ one }) => ({
-  student: one(students, { fields: [progress.studentId], references: [students.id] }),
-  teacher: one(teachers, { fields: [progress.teacherId], references: [teachers.id] }),
+export const sessionAttendanceRelations = relations(sessionAttendance, ({ one }) => ({
+  classSession: one(classSessions, { fields: [sessionAttendance.classSessionId], references: [classSessions.id] }),
+  student: one(students, { fields: [sessionAttendance.studentId], references: [students.id] }),
 }));
 
-export const teacherPerformanceRelations = relations(teacherPerformance, ({ one }) => ({
-  teacher: one(teachers, { fields: [teacherPerformance.teacherId], references: [teachers.id] }),
+export const sessionReportsRelations = relations(sessionReports, ({ one }) => ({
+  classSession: one(classSessions, { fields: [sessionReports.classSessionId], references: [classSessions.id] }),
+  teacher: one(teachers, { fields: [sessionReports.teacherId], references: [teachers.id] }),
+}));
+
+export const teacherActivityLogRelations = relations(teacherActivityLog, ({ one }) => ({
+  teacher: one(teachers, { fields: [teacherActivityLog.teacherId], references: [teachers.id] }),
+  classSession: one(classSessions, { fields: [teacherActivityLog.classSessionId], references: [classSessions.id] }),
+  section: one(sections, { fields: [teacherActivityLog.sectionId], references: [sections.id] }),
+}));
+
+export const studentPreferencesRelations = relations(studentPreferences, ({ one }) => ({
+  student: one(students, { fields: [studentPreferences.studentId], references: [students.id] }),
+  preferredTeacher: one(teachers, { fields: [studentPreferences.preferredTeacherId], references: [teachers.id] }),
 }));

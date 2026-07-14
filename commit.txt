@@ -1,0 +1,39 @@
+feat: full-stack education management system with Tailwind, NeonDB, and role-based access
+
+Backend:
+- Migrate from in-memory to PostgreSQL (NeonDB) with Drizzle ORM
+- Auth: JWT login, password change, teacher password reset (admin)
+- CRUD: teachers, students, courses, sections, enrollments, class sessions
+- Excel import for bulk student creation (XLSX parsing)
+- Session attendance (per-student) and reports (per-session) with upsert
+- Recurring schedule bulk session creation (generate weeks of sessions at once)
+- Teacher activity log for payment tracking
+- Reports analytics endpoint (low attendance, missing reports, behind schedule)
+- Teacher-specific endpoints: assigned students, teaching analytics
+- Dashboard aggregation for admin and teacher views
+
+Frontend:
+- Migrate from vanilla CSS to pure Tailwind v4 with shadcn/ui components
+- React 19 + TanStack Router/Query + Hono OpenAPI client
+- Admin dashboard: 4 metric cards, active sections, today's classes
+- Teacher dashboard: sections, today's schedule, completed count
+- Sections: admin-only creation with level/type student picker, recurring schedule dialog (day selector, date range, live preview)
+- Sessions: save-draft flow (attendance + report), complete-with-confirmation, read-only completed view with full report display
+- Session detail: attendance marking (radio for private, table for group), report fields (homework, vocabulary, grammar, skills, notes)
+- Teachers page: CRUD, reset password dialog with generated password display
+- Teacher detail page: analytics (sections, students, monthly stats, reports), horizontal session cards, private/group course breakdown
+- Students page: Excel import with drag/drop, admin-only create/import
+- Teacher students page: read-only view of assigned students only
+- Reports page: analytics with teacher missing-reports alert
+- Payments page: monthly audit by teacher
+- Sidebar: animated collapse/expand, profile dropdown with portal, role-based avatars, online indicator
+- Dropdown menus: portal-based rendering (escapes sidebar stacking context), smart viewport positioning
+- All dialogs, tables, cards, badges refreshed with modern Tailwind styling
+- Loading screen replaced with minimal spinner
+- Sonner toast notifications throughout
+- Teachers blocked from admin-only routes via path matching
+
+Infrastructure:
+- Vite build passes clean (191 modules, ~488KB)
+- TypeScript strict mode passes (frontend + backend)
+- NeonDB schema pushed via drizzle-kit push --force

@@ -1,189 +1,89 @@
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { AssignmentList } from '../components/lists/AssignmentList';
-import { StudentList } from '../components/lists/StudentList';
-import { ChangePasswordForm } from '../components/forms/ChangePasswordForm';
-import { Panel } from '../components/ui/Panel';
-import { Page } from '../components/ui/Page';
-import { QueryFeedback } from '../components/ui/QueryFeedback';
-import { StatusMessage } from '../components/ui/StatusMessage';
-import { ATTENDANCE_OPTIONS } from '../lib/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+
+function MetricCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardContent className="p-5">
+        <div className={`absolute top-0 right-0 w-20 h-20 rounded-bl-[3rem] ${color} opacity-10`} />
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-3xl font-bold mt-1.5 tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function TeacherDashboardPage() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const teacherId = user?.teacherId ?? '';
 
-  const assignments = useQuery({
-    queryKey: ['assignments', teacherId],
-    queryFn: () => api.assignments({ teacherId, status: 'Active' }),
-    retry: false,
-  });
+  const sections = useQuery({ queryKey: ['sections', teacherId], queryFn: () => api.sections({ teacherId }), retry: false });
+  const sessions = useQuery({ queryKey: ['sessions', 'today', teacherId], queryFn: () => api.classSessions({ view: 'today', teacherId }), retry: false });
 
-  const allStudents = useQuery({
-    queryKey: ['students', 'Active'],
-    queryFn: () => api.students({ status: 'Active' }),
-    retry: false,
-  });
-
-  const myStudents = useMemo(
-    () => (allStudents.data ?? []).filter((student) => student.assignedTeacherId === teacherId),
-    [allStudents.data, teacherId],
-  );
-
-  const [reportAssignmentId, setReportAssignmentId] = useState('');
-  const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reportLessonTitle, setReportLessonTitle] = useState('');
-  const [reportAttendance, setReportAttendance] = useState('Present');
-  const [reportNotes, setReportNotes] = useState('');
-  const [reportMsg, setReportMsg] = useState<string | null>(null);
-  const [reportError, setReportError] = useState(false);
-
-  const createSession = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.createSession(body),
-    onSuccess: () => {
-      setReportMsg('Session report submitted.');
-      setReportError(false);
-      setReportLessonTitle('');
-      setReportNotes('');
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    },
-    onError: (err) => {
-      setReportMsg(err instanceof Error ? err.message : 'Failed to submit session.');
-      setReportError(true);
-    },
-  });
+  const activeSections = sections.data?.filter(s => s.status === 'active') ?? [];
+  const todaySessions = sessions.data ?? [];
 
   return (
-    <Page title="Teacher Dashboard" subtitle={`Welcome, ${user?.name ?? 'Teacher'}.`}>
-      <div className="dashboard-grid">
-        <Panel title="My Schedule">
-          <QueryFeedback
-            isLoading={assignments.isLoading}
-            isError={assignments.isError}
-            error={assignments.error}
-            isEmpty={(assignments.data?.length ?? 0) === 0}
-            emptyMessage="No active assignments yet."
-            skeletonHeight={180}
-          >
-            <AssignmentList rows={assignments.data ?? []} />
-          </QueryFeedback>
-        </Panel>
-
-        <Panel title="My Students">
-          <QueryFeedback
-            isLoading={allStudents.isLoading}
-            isError={allStudents.isError}
-            error={allStudents.error}
-            isEmpty={myStudents.length === 0}
-            emptyMessage="No students assigned."
-            skeletonHeight={180}
-          >
-            <StudentList rows={myStudents} linked />
-          </QueryFeedback>
-        </Panel>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.name?.split(' ')[0] ?? 'Teacher'}</h1>
+        <p className="text-muted-foreground mt-1">Here's what's happening with your classes today.</p>
       </div>
 
-      <div className="dashboard-grid page-section">
-        <Panel title="Submit Session Report">
-          {reportMsg && (
-            <StatusMessage variant={reportError ? 'error' : 'success'}>{reportMsg}</StatusMessage>
-          )}
-          <form
-            className="inline-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const selected = assignments.data?.find((assignment) => assignment.id === reportAssignmentId);
-              if (!selected) return;
-
-              createSession.mutate({
-                sessionName: `${selected.assignmentName} - ${reportLessonTitle || 'Lesson'}`,
-                sessionDate: reportDate,
-                teacherId,
-                studentId: selected.studentId,
-                assignmentId: reportAssignmentId,
-                lessonNumber: 1,
-                lessonTitle: reportLessonTitle,
-                attendance: reportAttendance,
-                present: reportAttendance === 'Present',
-                absent: reportAttendance === 'Absent',
-                late: reportAttendance === 'Late',
-                cancelled: reportAttendance === 'Cancelled',
-                durationMinutes: 60,
-                teacherNotes: reportNotes,
-                homeworkSubmitted: false,
-              });
-            }}
-          >
-            <label className="form-field">
-              <span>Assignment</span>
-              <select
-                value={reportAssignmentId}
-                onChange={(event) => setReportAssignmentId(event.target.value)}
-                required
-              >
-                <option value="">Select assignment</option>
-                {assignments.data?.map((assignment) => (
-                  <option key={assignment.id} value={assignment.id}>
-                    {assignment.assignmentName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field">
-              <span>Date</span>
-              <input
-                value={reportDate}
-                onChange={(event) => setReportDate(event.target.value)}
-                type="date"
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span>Lesson title</span>
-              <input
-                value={reportLessonTitle}
-                onChange={(event) => setReportLessonTitle(event.target.value)}
-                placeholder="Lesson title"
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span>Attendance</span>
-              <select
-                value={reportAttendance}
-                onChange={(event) => setReportAttendance(event.target.value)}
-              >
-                {ATTENDANCE_OPTIONS.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field form-field-wide">
-              <span>Notes (optional)</span>
-              <textarea
-                value={reportNotes}
-                onChange={(event) => setReportNotes(event.target.value)}
-                placeholder="Notes (optional)"
-                rows={4}
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={createSession.isPending || !reportAssignmentId}
-            >
-              {createSession.isPending ? 'Submitting...' : 'Submit Report'}
-            </button>
-          </form>
-        </Panel>
-
-        <ChangePasswordForm />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricCard label="My Sections" value={activeSections.length} color="bg-primary" />
+        <MetricCard label="Today's Sessions" value={todaySessions.length} color="bg-emerald-500" />
+        <MetricCard label="Completed Today" value={todaySessions.filter(s => s.status === 'completed').length} color="bg-amber-500" />
       </div>
-    </Page>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><CardTitle>My Sections</CardTitle></CardHeader>
+          <CardContent>
+            {sections.isLoading && <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 bg-muted/50 rounded-xl animate-pulse" />)}</div>}
+            {activeSections.length === 0 && !sections.isLoading && <p className="text-sm text-muted-foreground py-8 text-center">No active sections assigned.</p>}
+            {activeSections.length > 0 && (
+              <div className="space-y-2">
+                {activeSections.map((section) => (
+                  <Link key={section.id} to={`/sections/$sectionId`} params={{ sectionId: section.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm group-hover:text-primary transition-colors truncate">{section.sectionName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{section.scheduleDays} &middot; {section.startTime}-{section.endTime}</div>
+                    </div>
+                    <Badge variant={section.classType === 'Private' ? 'neutral' : 'success'} className="shrink-0 ml-3">{section.classType}</Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Today's Schedule</CardTitle></CardHeader>
+          <CardContent>
+            {sessions.isLoading && <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 bg-muted/50 rounded-xl animate-pulse" />)}</div>}
+            {todaySessions.length === 0 && !sessions.isLoading && <p className="text-sm text-muted-foreground py-8 text-center">No sessions today.</p>}
+            {todaySessions.length > 0 && (
+              <div className="space-y-2">
+                {todaySessions.map((session) => (
+                  <Link key={session.id} to={`/sessions/$sessionId`} params={{ sessionId: session.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm group-hover:text-primary transition-colors truncate">{session.lessonTitle ?? `Session #${session.sessionNumber}`}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{session.sessionDate} &middot; {session.durationMinutes}min</div>
+                    </div>
+                    <Badge variant={session.status === 'completed' ? 'success' : 'neutral'} className="shrink-0 ml-3">{session.status}</Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

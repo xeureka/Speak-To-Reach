@@ -1,121 +1,81 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 
-import { api, type Session } from '../api';
-import { StudentList } from '../components/lists/StudentList';
-import { TeacherList } from '../components/lists/TeacherList';
-import { Badge } from '../components/ui/Badge';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Page } from '../components/ui/Page';
-import { Panel } from '../components/ui/Panel';
-import { QueryFeedback } from '../components/ui/QueryFeedback';
-import { Table } from '../components/ui/Table';
+import { api, type DashboardData } from '../api';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 export function ReportsPage() {
-  const dashboard = useQuery({
-    queryKey: ['dashboard', 'admin'],
-    queryFn: api.adminDashboard,
-    retry: false,
-  });
-  const reports = dashboard.data?.reports;
-
-  const allSessions = useQuery({
-    queryKey: ['sessions', 'all'],
-    queryFn: () => api.sessions(),
-    retry: false,
-  });
-  const teachers = useQuery({
-    queryKey: ['teachers', 'all'],
-    queryFn: () => api.teachers(),
-    retry: false,
-  });
-  const students = useQuery({
-    queryKey: ['students', 'all'],
-    queryFn: () => api.students(),
-    retry: false,
-  });
-
-  const teacherMap = useMemo(
-    () => new Map((teachers.data ?? []).map((teacher) => [teacher.id, teacher.teacherName])),
-    [teachers.data],
-  );
-  const studentMap = useMemo(
-    () => new Map((students.data ?? []).map((student) => [student.id, student.studentName])),
-    [students.data],
-  );
-
-  const recentSessions = useMemo(
-    () => (allSessions.data ?? []).slice().sort((a, b) => b.sessionDate.localeCompare(a.sessionDate)),
-    [allSessions.data],
-  );
-
-  const sessionColumns = useMemo(
-    () => [
-      { label: 'Date', render: (row: Session) => row.sessionDate },
-      { label: 'Teacher', render: (row: Session) => teacherMap.get(row.teacherId) ?? row.teacherId },
-      { label: 'Student', render: (row: Session) => studentMap.get(row.studentId) ?? row.studentId },
-      { label: 'Lesson', render: (row: Session) => row.lessonTitle },
-      { label: 'Attendance', render: (row: Session) => <Badge>{row.attendance}</Badge> },
-      { label: 'Notes', render: (row: Session) => row.teacherNotes || '-' },
-      {
-        label: 'Homework',
-        render: (row: Session) =>
-          row.homeworkSubmitted ? <Badge>Yes</Badge> : <Badge>No</Badge>,
-      },
-    ],
-    [teacherMap, studentMap],
-  );
+  const dashboard = useQuery({ queryKey: ['dashboard', 'admin'], queryFn: api.adminDashboard, retry: false });
+  const analytics = useQuery({ queryKey: ['reportsAnalytics'], queryFn: () => api.reportsAnalytics(), retry: false });
+  const data = dashboard.data as DashboardData | undefined;
 
   return (
-    <Page
-      title="Reports"
-      subtitle="Computed views for attendance risk, missing reports, schedule drift, and active accounts."
-    >
-      <QueryFeedback
-        isLoading={dashboard.isLoading}
-        isError={dashboard.isError}
-        error={dashboard.error}
-        isEmpty={!reports}
-        emptyMessage="Report data is not available."
-      >
-        {reports && (
-          <>
-            <div className="dashboard-grid">
-              <Panel title="Students with Low Attendance">
-                {reports.studentsWithLowAttendance.length > 0 ? (
-                  <StudentList rows={reports.studentsWithLowAttendance} />
-                ) : (
-                  <EmptyState message="None." description="All students are above the attendance threshold." />
-                )}
-              </Panel>
-              <Panel title="Teachers with Missing Lesson Reports">
-                {reports.teachersMissingLessonReports.length > 0 ? (
-                  <TeacherList rows={reports.teachersMissingLessonReports} />
-                ) : (
-                  <EmptyState message="None." description="All teachers have submitted recent reports." />
-                )}
-              </Panel>
-              <Panel title="Students Behind Schedule">
-                {reports.studentsBehindSchedule.length > 0 ? (
-                  <StudentList rows={reports.studentsBehindSchedule} />
-                ) : (
-                  <EmptyState message="None." description="All students are on track." />
-                )}
-              </Panel>
-            </div>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+        <p className="text-muted-foreground mt-1">Sections overview and teacher activity.</p>
+      </div>
 
-            <div className="dashboard-grid page-section">
-              <Panel title="Submitted Session Reports">
-                {recentSessions.length > 0 ? (
-                  <Table rows={recentSessions} columns={sessionColumns} />
-                ) : (
-                  <EmptyState message="None." description="No session reports have been submitted yet." />
-                )}
-              </Panel>
-            </div>
-          </>
-        )}
-      </QueryFeedback>
-    </Page>
+      {dashboard.isLoading && <div className="space-y-4">{Array.from({ length: 2 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="p-6"><div className="h-40 bg-muted/50 rounded-xl" /></CardContent></Card>)}</div>}
+
+      {data && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Active Sections</p><p className="text-2xl font-bold mt-1">{data.totalActiveSections}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Active Teachers</p><p className="text-2xl font-bold mt-1">{data.totalActiveTeachers}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Group Classes</p><p className="text-2xl font-bold mt-1">{data.activeGroupSections}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Private Classes</p><p className="text-2xl font-bold mt-1">{data.activePrivateSections}</p></CardContent></Card>
+        </div>
+      )}
+
+      {data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
+            <CardContent>
+              {data.recentActivity.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">No recent activity.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.recentActivity.slice(0, 6).map(s => (
+                    <Link key={s.id} to={`/sessions/$sessionId`} params={{ sessionId: s.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                      <div>
+                        <div className="font-medium text-sm group-hover:text-primary transition-colors">{s.lessonTitle ?? `Session #${s.sessionNumber}`}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{s.sessionDate}</div>
+                      </div>
+                      <Badge variant={s.status === 'completed' ? 'success' : 'neutral'}>{s.status}</Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Teachers Missing Reports Today</CardTitle></CardHeader>
+            <CardContent>
+              {analytics.isLoading && <div className="h-24 bg-muted/50 rounded-xl animate-pulse" />}
+              {analytics.data && analytics.data.teachersMissingLessonReports.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">All teachers have submitted reports today.</p>
+              )}
+              {analytics.data && analytics.data.teachersMissingLessonReports.length > 0 && (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Teacher</TableHead><TableHead>Email</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {analytics.data.teachersMissingLessonReports.map(t => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.teacherName}</TableCell>
+                        <TableCell>{t.email}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

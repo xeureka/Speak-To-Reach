@@ -1,105 +1,80 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { HiOutlinePlus } from 'react-icons/hi2';
 
 import { api } from '../api';
-import { CourseList } from '../components/lists/CourseList';
-import { Page } from '../components/ui/Page';
-import { QueryFeedback } from '../components/ui/QueryFeedback';
-import { LEVELS } from '../lib/constants';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
 export function CoursesPage() {
   const queryClient = useQueryClient();
-  const courses = useQuery({ queryKey: ['courses'], queryFn: api.courses, retry: false });
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [level, setLevel] = useState('Beginner');
-  const [units, setUnits] = useState('8');
-  const [lessons, setLessons] = useState('32');
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ courseName: '', level: 'Beginner', totalUnits: 8, totalLessons: 32, description: '' });
+  const [creating, setCreating] = useState(false);
 
-  const create = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.createCourse(body),
-    onSuccess: () => {
+  const courses = useQuery({ queryKey: ['courses'], queryFn: api.courses, retry: false });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      await api.createCourse(form);
+      setShowCreate(false);
+      setForm({ courseName: '', level: 'Beginner', totalUnits: 8, totalLessons: 32, description: '' });
       queryClient.invalidateQueries({ queryKey: ['courses'] });
-      setShowForm(false);
-      setName('');
-    },
-  });
+    } finally { setCreating(false); }
+  };
 
   return (
-    <Page title="Courses" subtitle="Manage courses, levels, and lesson counts.">
-      <div className="toolbar">
-        <button type="button" className="btn-primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ New Course'}
-        </button>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
+          <p className="text-muted-foreground mt-1">Manage available courses and curricula.</p>
+        </div>
+        <Button onClick={() => setShowCreate(true)} className="gap-1.5"><HiOutlinePlus size={16} /> New Course</Button>
       </div>
 
-      {showForm && (
-        <form
-          className="inline-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            create.mutate({
-              courseName: name,
-              level,
-              totalUnits: Number(units),
-              totalLessons: Number(lessons),
-            });
-          }}
-        >
-          <label className="form-field">
-            <span>Course name</span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Course name"
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span>Level</span>
-            <select value={level} onChange={(event) => setLevel(event.target.value)}>
-              {LEVELS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>Units</span>
-            <input
-              value={units}
-              onChange={(event) => setUnits(event.target.value)}
-              placeholder="Units"
-              type="number"
-              min={1}
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span>Lessons</span>
-            <input
-              value={lessons}
-              onChange={(event) => setLessons(event.target.value)}
-              placeholder="Lessons"
-              type="number"
-              min={1}
-              required
-            />
-          </label>
-          <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending ? 'Saving...' : 'Save Course'}
-          </button>
-        </form>
-      )}
+      <Card>
+        <CardHeader><CardTitle>All Courses</CardTitle></CardHeader>
+        <CardContent>
+          {courses.isLoading && <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}</div>}
+          {courses.data && courses.data.length === 0 && <p className="text-sm text-muted-foreground py-8 text-center">No courses found.</p>}
+          {courses.data && courses.data.length > 0 && (
+            <Table>
+              <TableHeader><TableRow><TableHead>Course</TableHead><TableHead>Level</TableHead><TableHead>Units</TableHead><TableHead>Lessons</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {courses.data.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.courseName}</TableCell>
+                    <TableCell>{c.level}</TableCell>
+                    <TableCell>{c.totalUnits}</TableCell>
+                    <TableCell>{c.totalLessons}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-      <QueryFeedback
-        isLoading={courses.isLoading}
-        isError={courses.isError}
-        error={courses.error}
-        isEmpty={(courses.data?.length ?? 0) === 0}
-        emptyMessage="No courses created yet."
-      >
-        <CourseList rows={courses.data ?? []} />
-      </QueryFeedback>
-    </Page>
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Course</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4 mt-4">
+            <div className="space-y-2"><Label>Course Name</Label><Input value={form.courseName} onChange={(e) => setForm({ ...form, courseName: e.target.value })} required /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Units</Label><Input type="number" value={form.totalUnits} onChange={(e) => setForm({ ...form, totalUnits: +e.target.value })} /></div>
+              <div className="space-y-2"><Label>Lessons</Label><Input type="number" value={form.totalLessons} onChange={(e) => setForm({ ...form, totalLessons: +e.target.value })} /></div>
+            </div>
+            <Button type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create Course'}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
