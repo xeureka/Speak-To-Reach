@@ -77,8 +77,21 @@ export function ProtectedLayout() {
   return (
     <div className={`grid min-h-svh transition-all duration-300 ease-in-out ${sidebarCompact ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[260px_minmax(0,1fr)]'}`}>
       {/* Sidebar */}
-      <aside className={`sticky top-0 z-30 h-svh flex flex-col bg-surface text-surface-foreground border-r border-white/10 transition-all duration-300 ease-in-out ${sidebarCompact ? 'px-2.5 py-4' : 'px-4 py-4'}`}>
-        {/* Top Row: Brand + Collapse */}
+      <aside className={`sticky top-0 z-30 h-svh flex flex-col bg-surface text-surface-foreground border-r border-white/10 transition-all duration-300 ease-in-out overflow-visible ${sidebarCompact ? 'px-2.5 py-4' : 'px-4 py-4'}`}>
+        {/* Toggle Button - floats over the right edge */}
+        <button
+          onClick={toggleCompact}
+          type="button"
+          className="absolute -right-3 top-6 z-50 flex h-6 w-6 items-center justify-center rounded-md border border-white/15 bg-slate-800 text-surface-foreground/70 shadow-md hover:bg-white/20 hover:text-white transition-all duration-200 group"
+          aria-label={sidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <HiOutlineChevronLeft
+            size={14}
+            className={`transition-transform duration-300 ease-in-out ${sidebarCompact ? 'rotate-180' : 'rotate-0'} group-hover:scale-110`}
+          />
+        </button>
+
+        {/* Top Row: Brand */}
         <div className="flex items-center gap-2.5">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/12 shrink-0 transition-all duration-300">
             <HiOutlineChatBubbleLeftRight size={18} />
@@ -88,17 +101,6 @@ export function ProtectedLayout() {
               <strong className="block text-sm leading-tight whitespace-nowrap">Speak To Reach</strong>
             </div>
           )}
-          <button
-            onClick={toggleCompact}
-            type="button"
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 text-surface-foreground/70 hover:bg-white/20 hover:text-white transition-all duration-200 shrink-0 group"
-            aria-label={sidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <HiOutlineChevronLeft
-              size={16}
-              className={`transition-transform duration-300 ease-in-out ${sidebarCompact ? 'rotate-180' : 'rotate-0'} group-hover:scale-110`}
-            />
-          </button>
         </div>
 
         {/* User Profile Card */}
