@@ -223,7 +223,7 @@ export function SessionActionPage() {
                               value={attendance[e.studentId] ?? 'Present'}
                               onChange={(ev) => setAttendance({ ...attendance, [e.studentId]: ev.target.value })}
                               disabled={isCompleted}
-                              className="flex h-9 rounded-lg border border-border bg-background px-2.5 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              className="flex h-9 rounded-lg border border-border bg-background px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                             >
                               {ATTENDANCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@source "../node_modules/@mesob/ui/src";
 
 @theme {
   --color-background: #f7f8fa;

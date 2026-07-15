@@ -124,7 +124,7 @@ export function PremiumLoadingScreen({ onComplete }: Props) {
       </div>
 
       {/* Loading panel */}
-      <div className="relative z-10 grid gap-6 justify-items-center w-full max-w-[420px] mx-4 px-10 py-11 bg-white/7 backdrop-blur-2xl border border-white/12 rounded-2xl shadow-[0_32px_80px_rgba(0,0,0,0.35)]">
+      <div className="relative z-10 grid gap-6 justify-items-center w-full max-w-[420px] mx-4 px-10 py-11 bg-white/7 backdrop-blur-2xl border border-white/12 rounded-2xl">
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-11 h-11 rounded-[10px] bg-white/12 text-surface-foreground">
@@ -141,7 +141,7 @@ export function PremiumLoadingScreen({ onComplete }: Props) {
         {/* Progress bar */}
         <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-primary via-teal-400 to-emerald-300 shadow-[0_0_12px_rgba(8,127,140,0.5)] transition-[width] duration-100"
+            className="h-full rounded-full bg-gradient-to-r from-primary via-teal-400 to-emerald-300 transition-[width] duration-100"
             style={{ width: `${progress}%` }}
           />
         </div>

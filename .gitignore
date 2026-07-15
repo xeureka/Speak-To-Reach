@@ -53,3 +53,5 @@ Thumbs.db
 # The route tree file is usually safe to ignore if it is auto-generated
 # on startup. If you use TanStack Start, it is often required to be committed.
 routeTree.gen.ts
+
+note.ts

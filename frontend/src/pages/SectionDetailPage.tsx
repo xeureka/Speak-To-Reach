@@ -13,10 +13,10 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
-const selectCls = "flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
+const selectCls = "flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
@@ -219,7 +219,14 @@ export function SectionDetailPage() {
               <CardContent>
                 {(enrollments.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground py-8 text-center">No students enrolled.</p> : (
                   <Table>
-                    <TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Level</TableHead><TableHead>Enrolled</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student</TableHead>
+                        <TableHead>Level</TableHead>
+                        <TableHead>Enrolled</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
                     <TableBody>
                       {(enrollments.data ?? []).map(e => {
                         const stu = studentMap.get(e.studentId);
@@ -255,7 +262,16 @@ export function SectionDetailPage() {
               <CardContent>
                 {(sessions.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground py-8 text-center">No sessions scheduled.</p> : (
                   <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>#</TableHead><TableHead>Lesson</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>#</TableHead>
+                        <TableHead>Lesson</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
                     <TableBody>
                       {(sessions.data ?? []).map(s => (
                         <TableRow key={s.id}>
@@ -289,6 +305,7 @@ export function SectionDetailPage() {
 
       {isAdmin && (
         <>
+          {/* Edit Section Modal */}
           <Dialog open={showEdit} onOpenChange={setShowEdit}>
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>Edit Section</DialogTitle></DialogHeader>
@@ -309,21 +326,62 @@ export function SectionDetailPage() {
                   <div className="space-y-2"><Label>Start Time</Label><Input value={editForm.startTime} onChange={e => setEditForm({ ...editForm, startTime: e.target.value })} type="time" /></div>
                   <div className="space-y-2"><Label>End Time</Label><Input value={editForm.endTime} onChange={e => setEditForm({ ...editForm, endTime: e.target.value })} type="time" /></div>
                 </div>
-                <Button type="submit">Save Changes</Button>
+                <div className="flex justify-end pt-2">
+                  <Button type="submit">Save Changes</Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
 
+          {/* Enroll Student Modal */}
           <Dialog open={showEnroll} onOpenChange={setShowEnroll}>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>Enroll Student</DialogTitle></DialogHeader>
               <form onSubmit={async (e) => { e.preventDefault(); if (!selectedStudent) return; await api.createEnrollment(sectionId, { studentId: selectedStudent }); setShowEnroll(false); setSelectedStudent(''); queryClient.invalidateQueries({ queryKey: ['enrollments', sectionId] }); toast.success('Student enrolled'); }} className="space-y-4 mt-4">
-                <div className="space-y-2"><Label>Student</Label><select value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)} required className={selectCls}><option value="">Select student</option>{availableStudents.map(s => <option key={s.id} value={s.id}>{s.studentName} ({s.level})</option>)}</select></div>
-                <Button type="submit" disabled={!selectedStudent}>Enroll</Button>
+                <div className="space-y-2">
+                  <Label>Student</Label>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Student</TableHead>
+                        <TableHead>Level</TableHead>
+                        <TableHead>Class Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {availableStudents.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">No available students to enroll.</TableCell>
+                        </TableRow>
+                      )}
+                      {availableStudents.map(s => (
+                        <TableRow
+                          key={s.id}
+                          className={`cursor-pointer transition-colors ${selectedStudent === s.id ? 'bg-primary/5' : 'hover:bg-muted/40'}`}
+                          onClick={() => setSelectedStudent(s.id)}
+                        >
+                          <TableCell>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedStudent === s.id ? 'border-primary' : 'border-muted-foreground/40'}`}>
+                              {selectedStudent === s.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{s.studentName}</TableCell>
+                          <TableCell><Badge variant="neutral">{s.level}</Badge></TableCell>
+                          <TableCell>{s.classType}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button type="submit" disabled={!selectedStudent}>Enroll</Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
 
+          {/* Add Session Modal */}
           <Dialog open={showSession} onOpenChange={setShowSession}>
             <DialogContent>
               <DialogHeader><DialogTitle>Add Session</DialogTitle></DialogHeader>
@@ -331,83 +389,84 @@ export function SectionDetailPage() {
                 <div className="space-y-2"><Label>Date</Label><Input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>Session #</Label><Input type="number" value={sessionNumber} onChange={e => setSessionNumber(e.target.value)} min={1} required /></div>
                 <div className="space-y-2"><Label>Lesson Title</Label><Input value={lessonTitle} onChange={e => setLessonTitle(e.target.value)} placeholder="Optional" /></div>
-                <Button type="submit">Create Session</Button>
+                <div className="flex justify-end pt-2">
+                  <Button type="submit">Create Session</Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
 
+          {/* Schedule Recurring Sessions Modal */}
           <Dialog open={showSchedule} onOpenChange={(open) => { setShowSchedule(open); if (!open) { setSchedDays([]); setSchedPreview([]); } }}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><HiOutlineCalendarDays size={20} /> Schedule Recurring Sessions</DialogTitle>
-              </DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Schedule Recurring Sessions</DialogTitle></DialogHeader>
               <div className="space-y-5 mt-4">
-                <p className="text-sm text-muted-foreground">Generate multiple sessions at once based on a weekly schedule pattern.</p>
+              <p className="text-sm text-muted-foreground">Generate multiple sessions at once based on a weekly schedule pattern.</p>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input type="date" value={schedStart} onChange={e => { setSchedStart(e.target.value); setTimeout(updateSchedPreview, 0); }} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Input type="date" value={schedEnd} onChange={e => { setSchedEnd(e.target.value); setTimeout(updateSchedPreview, 0); }} />
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Class Days</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {DAYS_OF_WEEK.map(day => (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => { toggleSchedDay(day); setTimeout(updateSchedPreview, 0); }}
-                        className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border ${
-                          schedDays.includes(day)
-                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                            : 'bg-background border-border hover:border-primary/40 hover:bg-primary/5'
-                        }`}
-                      >
-                        {day.slice(0, 3)}
-                      </button>
+                  <Label>Start Date</Label>
+                  <Input type="date" value={schedStart} onChange={e => { setSchedStart(e.target.value); setTimeout(updateSchedPreview, 0); }} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input type="date" value={schedEnd} onChange={e => { setSchedEnd(e.target.value); setTimeout(updateSchedPreview, 0); }} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Class Days</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map(day => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => { toggleSchedDay(day); setTimeout(updateSchedPreview, 0); }}
+                      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border ${
+                        schedDays.includes(day)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background border-border hover:border-primary/40 hover:bg-primary/5'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Time</Label>
+                  <Input type="time" value={schedStartHour} onChange={e => { setSchedStartHour(e.target.value); setTimeout(updateSchedPreview, 0); }} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Time</Label>
+                  <Input type="time" value={schedEndHour} onChange={e => { setSchedEndHour(e.target.value); setTimeout(updateSchedPreview, 0); }} />
+                </div>
+              </div>
+
+              {schedPreview.length > 0 && (
+                <div className="border border-border rounded-xl p-4 bg-muted/30 max-h-56 overflow-y-auto">
+                  <p className="text-sm font-medium mb-3">{schedPreview.length} sessions will be created:</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {schedPreview.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground py-1 px-2 rounded-lg bg-background/60">
+                        <span className="font-medium text-foreground">#{s.sessionNumber}</span>
+                        <span>{s.sessionDate}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Time</Label>
-                    <Input type="time" value={schedStartHour} onChange={e => { setSchedStartHour(e.target.value); setTimeout(updateSchedPreview, 0); }} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Time</Label>
-                    <Input type="time" value={schedEndHour} onChange={e => { setSchedEndHour(e.target.value); setTimeout(updateSchedPreview, 0); }} />
-                  </div>
-                </div>
-
-                {schedPreview.length > 0 && (
-                  <div className="border border-border rounded-xl p-4 bg-muted/30 max-h-56 overflow-y-auto">
-                    <p className="text-sm font-medium mb-3">{schedPreview.length} sessions will be created:</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {schedPreview.map((s, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground py-1 px-2 rounded-lg bg-background/60">
-                          <span className="font-medium text-foreground">#{s.sessionNumber}</span>
-                          <span>{s.sessionDate}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={() => { setShowSchedule(false); setSchedDays([]); setSchedPreview([]); }} className="flex-1">Cancel</Button>
-                  <Button onClick={handleScheduleSubmit} disabled={scheduling || schedDays.length === 0 || schedPreview.length === 0} className="flex-1">
-                    {scheduling ? 'Scheduling...' : `Create ${schedPreview.length} Sessions`}
-                  </Button>
-                </div>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setShowSchedule(false); setSchedDays([]); setSchedPreview([]); }} className="flex-1">Cancel</Button>
+                <Button onClick={handleScheduleSubmit} disabled={scheduling || schedDays.length === 0 || schedPreview.length === 0} className="flex-1">
+                  {scheduling ? 'Scheduling...' : `Create ${schedPreview.length} Sessions`}
+                </Button>
               </div>
-            </DialogContent>
+            </div>
+          </DialogContent>
           </Dialog>
         </>
       )}

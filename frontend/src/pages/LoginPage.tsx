@@ -44,7 +44,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen grid place-items-center bg-gradient-to-br from-[#0a1f22] via-[#13292d] to-[#1a3a3f] p-6">
       <div className="w-full max-w-md">
-        <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] p-8 space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl border border-border/60 p-8 space-y-6">
           {/* Brand */}
           <div className="flex items-center gap-3.5">
             <div className="flex items-center justify-center w-13 h-13 rounded-xl bg-surface-foreground/5 text-primary">
@@ -66,7 +66,7 @@ export function LoginPage() {
                 type="button"
                 className={`flex items-center justify-center gap-2 p-3 border-2 rounded-xl text-sm font-semibold transition-all ${
                   email === account.email
-                    ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                    ? 'border-primary bg-primary/5 text-primary'
                     : 'border-border hover:border-primary/40 hover:bg-accent'
                 }`}
                 onClick={() => fillCredentials(account.email, account.password)}

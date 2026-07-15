@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
-import { api, type DashboardData } from '../api';
+import { api, type DashboardData, type ClassSession } from '../api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -10,6 +11,11 @@ export function ReportsPage() {
   const dashboard = useQuery({ queryKey: ['dashboard', 'admin'], queryFn: api.adminDashboard, retry: false });
   const analytics = useQuery({ queryKey: ['reportsAnalytics'], queryFn: () => api.reportsAnalytics(), retry: false });
   const data = dashboard.data as DashboardData | undefined;
+
+  const sortedActivity = useMemo(() => {
+    if (!data) return [];
+    return [...data.recentActivity].sort((a: ClassSession, b: ClassSession) => b.sessionDate.localeCompare(a.sessionDate));
+  }, [data]);
 
   return (
     <div className="space-y-8">
@@ -34,20 +40,31 @@ export function ReportsPage() {
           <Card>
             <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
             <CardContent>
-              {data.recentActivity.length === 0 ? (
+              {sortedActivity.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No recent activity.</p>
               ) : (
-                <div className="space-y-2">
-                  {data.recentActivity.slice(0, 6).map(s => (
-                    <Link key={s.id} to={`/sessions/$sessionId`} params={{ sessionId: s.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
-                      <div>
-                        <div className="font-medium text-sm group-hover:text-primary transition-colors">{s.lessonTitle ?? `Session #${s.sessionNumber}`}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{s.sessionDate}</div>
-                      </div>
-                      <Badge variant={s.status === 'completed' ? 'success' : 'neutral'}>{s.status}</Badge>
-                    </Link>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedActivity.map(s => (
+                      <TableRow key={s.id}>
+                        <TableCell>
+                          <Link to={`/sessions/$sessionId`} params={{ sessionId: s.id }} className="font-medium hover:text-primary transition-colors">
+                            {s.lessonTitle ?? `Session #${s.sessionNumber}`}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{s.sessionDate}</TableCell>
+                        <TableCell><Badge variant={s.status === 'completed' ? 'success' : 'neutral'}>{s.status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>

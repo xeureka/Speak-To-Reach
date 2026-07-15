@@ -119,8 +119,8 @@ export function StudentsPage() {
             <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
             <div className="space-y-2"><Label>Email</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Level</Label><select value={level} onChange={(e) => setLevel(e.target.value)} className="flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{LEVELS.map(l => <option key={l}>{l}</option>)}</select></div>
-              <div className="space-y-2"><Label>Class Type</Label><select value={classType} onChange={(e) => setClassType(e.target.value)} className="flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{CLASS_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+              <div className="space-y-2"><Label>Level</Label><select value={level} onChange={(e) => setLevel(e.target.value)} className="flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{LEVELS.map(l => <option key={l}>{l}</option>)}</select></div>
+              <div className="space-y-2"><Label>Class Type</Label><select value={classType} onChange={(e) => setClassType(e.target.value)} className="flex h-10 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{CLASS_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
             </div>
             <Button type="submit">Save Student</Button>
           </form>

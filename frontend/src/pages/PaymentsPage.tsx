@@ -24,7 +24,7 @@ export function PaymentsPage() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="flex h-10 rounded-xl border border-border bg-background px-3.5 py-2 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
+            className="flex h-10 rounded-xl border border-border bg-background px-3.5 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
           />
         </div>
       </div>

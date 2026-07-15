@@ -63,7 +63,7 @@ function DropdownMenuContent({ className, align = "end", children, ...props }: D
     <div
       ref={ref}
       className={cn(
-        "fixed z-[9999] min-w-[14rem] overflow-hidden rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-xl",
+        "fixed z-[9999] min-w-[14rem] overflow-hidden rounded-lg border bg-popover p-1.5 text-popover-foreground",
         "animate-in fade-in-0 zoom-in-95 slide-in-from-top-2",
         transformOrigin,
         translateX,

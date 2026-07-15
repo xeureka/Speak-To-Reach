@@ -32,7 +32,7 @@ function DialogContent({ className, children, ...props }: DialogContentProps) {
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div
           className={cn(
-            "relative bg-card border border-border/60 shadow-2xl rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6",
+            "relative bg-card border border-border/60 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6",
             "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-200",
             className
           )}

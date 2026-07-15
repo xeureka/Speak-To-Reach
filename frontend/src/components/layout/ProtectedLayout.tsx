@@ -82,7 +82,7 @@ export function ProtectedLayout() {
         <button
           onClick={toggleCompact}
           type="button"
-          className="absolute -right-3 top-6 z-50 flex h-6 w-6 items-center justify-center rounded-md border border-white/15 bg-slate-800 text-surface-foreground/70 shadow-md hover:bg-white/20 hover:text-white transition-all duration-200 group"
+          className="absolute -right-3 top-6 z-50 flex h-6 w-6 items-center justify-center rounded-md border border-white/15 bg-slate-800 text-surface-foreground/70 hover:bg-white/20 hover:text-white transition-all duration-200 group"
           aria-label={sidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <HiOutlineChevronLeft

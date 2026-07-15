@@ -6,6 +6,7 @@ import { api, type DashboardData } from '../api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 function MetricCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -65,17 +66,28 @@ export function AdminDashboardPage() {
                 {data.sections.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-8 text-center">No active sections.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {data.sections.slice(0, 6).map((section) => (
-                      <Link key={section.id} to={`/sections/$sectionId`} params={{ sectionId: section.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm group-hover:text-primary transition-colors truncate">{section.sectionName}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{section.scheduleDays} &middot; {section.startTime}</div>
-                        </div>
-                        <Badge variant={section.classType === 'Private' ? 'neutral' : 'success'} className="shrink-0 ml-3">{section.classType}</Badge>
-                      </Link>
-                    ))}
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Section</TableHead>
+                        <TableHead>Schedule</TableHead>
+                        <TableHead>Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.sections.slice(0, 6).map((section) => (
+                        <TableRow key={section.id}>
+                          <TableCell>
+                            <Link to={`/sections/$sectionId`} params={{ sectionId: section.id }} className="font-medium hover:text-primary transition-colors">
+                              {section.sectionName}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{section.scheduleDays} · {section.startTime}</TableCell>
+                          <TableCell><Badge variant={section.classType === 'Private' ? 'neutral' : 'success'}>{section.classType}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>
@@ -86,17 +98,28 @@ export function AdminDashboardPage() {
                 {data.todaysClasses.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-8 text-center">No classes scheduled today.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {data.todaysClasses.map((session) => (
-                      <Link key={session.id} to={`/sessions/$sessionId`} params={{ sessionId: session.id }} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-primary/5 transition-all group">
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm group-hover:text-primary transition-colors truncate">{session.lessonTitle ?? `Session #${session.sessionNumber}`}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{session.sessionDate} &middot; {session.durationMinutes}min</div>
-                        </div>
-                        <Badge variant={session.status === 'completed' ? 'success' : 'neutral'} className="shrink-0 ml-3">{session.status}</Badge>
-                      </Link>
-                    ))}
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Session</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.todaysClasses.map((session) => (
+                        <TableRow key={session.id}>
+                          <TableCell>
+                            <Link to={`/sessions/$sessionId`} params={{ sessionId: session.id }} className="font-medium hover:text-primary transition-colors">
+                              {session.lessonTitle ?? `Session #${session.sessionNumber}`}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{session.durationMinutes}min</TableCell>
+                          <TableCell><Badge variant={session.status === 'completed' ? 'success' : 'neutral'}>{session.status}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>
