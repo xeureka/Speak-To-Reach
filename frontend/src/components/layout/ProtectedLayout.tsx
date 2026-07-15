@@ -4,6 +4,8 @@ import {
   HiOutlineChatBubbleLeftRight,
   HiOutlineChevronLeft,
   HiOutlineCog6Tooth,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
 } from 'react-icons/hi2';
 import { Link, Outlet, useLocation, useRouter } from '@tanstack/react-router';
 
@@ -29,6 +31,8 @@ export function ProtectedLayout() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
   const [pwMsg, setPwMsg] = useState('');
   const [pwError, setPwError] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
@@ -207,11 +211,21 @@ export function ProtectedLayout() {
             )}
             <div className="space-y-2">
               <Label htmlFor="currentPw">Current Password</Label>
-              <Input id="currentPw" type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required />
+              <div className="relative">
+                <Input id="currentPw" type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required className="pr-11" />
+                <button type="button" tabIndex={-1} onClick={() => setShowCurrentPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" aria-label={showCurrentPw ? 'Hide password' : 'Show password'}>
+                  {showCurrentPw ? <HiOutlineEyeSlash size={20} /> : <HiOutlineEye size={20} />}
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="newPw">New Password</Label>
-              <Input id="newPw" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} />
+              <div className="relative">
+                <Input id="newPw" type={showNewPw ? 'text' : 'password'} value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} className="pr-11" />
+                <button type="button" tabIndex={-1} onClick={() => setShowNewPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" aria-label={showNewPw ? 'Hide password' : 'Show password'}>
+                  {showNewPw ? <HiOutlineEyeSlash size={20} /> : <HiOutlineEye size={20} />}
+                </button>
+              </div>
             </div>
             <Button type="submit" disabled={pwLoading || !currentPw || !newPw}>
               {pwLoading ? 'Updating...' : 'Update Password'}
